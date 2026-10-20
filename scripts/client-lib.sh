@@ -24,6 +24,7 @@ wait_ready() {
 # Log in from a clean client state: login <task> <origin> <email> <text expected after login>
 login() {
   local d=$1 origin=$2 email=$3 expect=$4
+  $d close >/dev/null 2>&1 || true
   $d start --browser chrome --headless
   $d run set_viewport -p width=1100 -p height=760
   $d run go_to_url -p "url=$origin/login"
@@ -52,4 +53,31 @@ send() {
   "$1" run click_element_by_selector -p selector=#message-input
   "$1" run input_text_by_selector -p selector=#message-input -p "text=$2"
   "$1" run press_key -p key=Enter
+}
+
+# Switch to the tab (secondary windows open as tabs) whose URL path starts with <path>, waiting for it to open:
+# use_tab <task> <path>
+use_tab() {
+  local i idx
+  for i in $(seq 1 20); do
+    idx=$("$1" run get_tabs | python3 -c "
+import sys, json
+from urllib.parse import urlparse
+tabs = json.loads(sys.stdin.read()).get('tabs', [])
+hits = [t['index'] for t in tabs if urlparse(t['url']).path.startswith(sys.argv[1])]
+print(hits[-1] if hits else '')" "$2" 2>/dev/null || true)
+    if [ -n "$idx" ]; then
+      "$1" run switch_tab -p pageIndex="$idx"
+      "$1" run set_viewport -p width=1100 -p height=760 >/dev/null
+      return 0
+    fi
+    sleep 0.5
+  done
+  echo "tab $2 not found" >&2
+  return 1
+}
+
+# Wait until the page text contains <text>: wait_text <task> <text> [timeoutMs]
+wait_text() {
+  "$1" run wait_for_text -p "text=$2" -p "timeoutMs=${3:-10000}"
 }

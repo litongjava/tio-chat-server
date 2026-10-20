@@ -14,6 +14,7 @@
 - `scripts/client-e2e.sh`：单聊，两个浏览器任务完成登录、收发消息、查看好友列表并截图。
 - `scripts/client-group-e2e.sh`：群聊与消息撤回。
 - `scripts/client-upload-e2e.sh`：发送图片和文件（需要 MinIO，见 README“文件存储”一节）。
+- `scripts/client-friend-e2e.sh`：按账号搜索加好友、按群号申请加群。
 - `scripts/client-ai-e2e.sh`：AI 助手对话（需要先用 `scripts/setup-deepseek.sh` 登记模型，见 README“AI 模型”一节）。
 
 ## 运行
@@ -33,6 +34,7 @@ sg docker -c "scripts/client-e2e.sh client-e2e-out"
 sg docker -c "scripts/client-group-e2e.sh client-e2e-out"
 sg docker -c "scripts/client-upload-e2e.sh client-e2e-out"
 sg docker -c "scripts/client-ai-e2e.sh client-e2e-out"
+sg docker -c "scripts/client-friend-e2e.sh client-e2e-out"
 ```
 
 两个用户分别使用 `127.0.0.1` 和 `localhost` 两个源打开页面，各自的 localStorage 互不影响；每次登录前会清空该源的本地状态，保证首次使用引导、登录表单的流程一致。
@@ -84,6 +86,26 @@ sg docker -c "scripts/client-ai-e2e.sh client-e2e-out"
 
 测试中修复了一个服务端问题：MinIO 下载地址中的对象名没有做 URL 编码，文件名含空格、`#`、`%` 等字符时下载地址无效；现在下载地址与上传地址使用同样的路径编码，文件名中的 `/`、`\` 也会替换为 `_`，避免对象落到其他目录。
 
+## 加好友与申请加群
+
+桌面客户端的“加好友/群”、“申请加好友”、“申请加群”都是独立窗口，垫片把它们作为新标签页打开（`window.open(url, label)`），测试脚本用 dsb 的 `get_tabs` / `switch_tab` 切换（`client-lib.sh` 的 `use_tab`）。多个标签页之间的配合方式与 Rust 层一致：
+
+- 窗口之间共享的 Pinia 状态（例如要添加的用户 `addFriendModalInfo`）由客户端自带的 `pinia-shared-state` 通过 BroadcastChannel 同步。
+- WebSocket 只在主窗口（`home`）所在标签页中建立。推送按 Rust 层的规则分发：聊天、联系人、群、朋友圈类推送只发给 `home`，通话、登录二维码、令牌失效等推送发给所有窗口；其他标签页通过 BroadcastChannel 收到。
+- 其他标签页调用 `ws_send_message`（例如通话窗口发送信令）时，垫片把消息转给持有连接的标签页发送；连接状态写在 localStorage 中，`ws_get_state` / `ws_is_connected` 在所有标签页返回一致的结果。
+- 窗口的 `close` / `destroy` 关闭对应的标签页；关闭其他窗口（按标签名）时转发给那个标签页自己关闭。
+
+`scripts/client-friend-e2e.sh` 注册 alice、bob（互不认识）和 alice 的两个好友，alice 用这两个好友建一个群，然后：
+
+1. alice 点击“+”→“加好友/群”，在“找好友”中输入 bob 的账号搜索，结果显示 bob 的昵称和账号，点击“添加”。
+2. “申请加好友”窗口显示 bob 的资料，填写留言后点击“添加好友”，提示“已发送好友申请”。
+3. bob 停留在通讯录页面，通过 `newApply` 推送实时出现未读角标；打开“好友通知”，显示 alice 的申请和留言，点击“接受”后变为“已同意”，好友列表出现 alice。
+4. alice 不刷新页面，会话列表出现与 bob 的单聊，摘要为“我们已经成为好友了，开始聊天吧”；bob 发消息，alice 实时收到。
+5. bob 在“找群聊”中输入群号，搜到 alice 的群，点击“添加”，在“申请加群”窗口填写留言并点击“申请加入”，提示“已发送群聊申请”。
+6. alice 打开“群通知”，显示 bob 的申请和留言，点击“接受”；bob 的会话列表出现该群，打开后显示“bob 加入群聊”，可以发言，群成员为 4 人。
+
+截图：`21-search-user.png`、`22-add-friend-verify.png`、`23-bob-friend-notice.png`、`24-bob-accepted.png`、`25-alice-new-chat.png`、`26-alice-chat-with-bob.png`、`27-search-group.png`、`28-alice-group-notice.png`、`29-bob-joined-group.png`。
+
 ## AI 助手（DeepSeek）
 
 桌面客户端的 AI 助手是 `/robot` 窗口。发送消息时页面调用 Rust 命令 `ai_message_send_stream`，参数是请求体 `body`（`conversationId`、`content`、`useContext`、`reasoningEnabled`）、`requestId` 和一个 Channel；Rust 层 POST `ai/chat/message/send-stream`，收到响应头后命令立即返回，随后在后台按 `\n\n` 切分 SSE 事件，每个 `data:` 行作为一条 `{eventType: "chunk", data, requestId}` 发到 Channel，流结束时发送 `done`（`data` 为全部数据拼接），出错时发送 `error`。停止生成调用 `ai_message_cancel_stream`，中止后台任务后不再发送任何事件。垫片按同样的顺序和字段实现这两个命令：用 `fetch` 读取响应流，`TextDecoder` 按流式方式解码（多字节汉字被拆在两个数据块中也能正确拼接），取消时中止 `fetch`。
@@ -120,4 +142,5 @@ curl -N -XPOST localhost:18760/api/ai/chat/message/send-stream -H 'Content-Type:
 
 - 垫片不使用本地 SQLite：会话、消息、群成员每次直接从服务端读取，`save_msg`、`sync_messages` 等本地缓存命令为空操作。
 - 只在桌面端打开的辅助窗口（加好友、设置等）会以新标签页打开；主窗口（登录、主界面）在当前标签页切换。
+- 浏览器登录会使同一设备类型（PC）之前签发的令牌失效，测试脚本在浏览器登录后需要调用接口时，用另一个设备类型（如 `MOBILE`）重新登录取得令牌。
 - 首次启动时 Vite 会预构建依赖并自动刷新一次页面，垫片会保留当前窗口标签，刷新后状态不受影响。
