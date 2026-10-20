@@ -81,3 +81,11 @@ print(hits[-1] if hits else '')" "$2" 2>/dev/null || true)
 wait_text() {
   "$1" run wait_for_text -p "text=$2" -p "timeoutMs=${3:-10000}"
 }
+
+# Close a task without leaving pages behind (the shared browser keeps the last task's pages,
+# and windows opened as tabs would keep running the client): finish <task>
+finish() {
+  "$1" run close_other_tabs >/dev/null 2>&1 || true
+  "$1" run go_to_url -p url=about:blank >/dev/null 2>&1 || true
+  "$1" close
+}

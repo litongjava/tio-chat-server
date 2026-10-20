@@ -58,6 +58,6 @@ open_chat dsb_b "$GROUP"
 dsb_b run wait_for_function -p "expression=document.body.innerText.includes('撤回了一条消息') && !document.body.innerText.includes('$RECALL_TEXT')" -p timeoutSeconds=10
 shot dsb_b 18-recall-bob-reload.png
 
-dsb_a close
-dsb_b close
+finish dsb_a
+finish dsb_b
 ls -la "$OUT"

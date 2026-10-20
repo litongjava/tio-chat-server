@@ -55,6 +55,6 @@ sleep 1
 shot dsb_a 01-alice-sent-image-file.png
 shot dsb_b 02-bob-received-image-file.png
 
-dsb_a close
-dsb_b close
+finish dsb_a
+finish dsb_b
 ls -la "$OUT"

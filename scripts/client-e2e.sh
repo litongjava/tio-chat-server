@@ -32,6 +32,6 @@ dsb_b run click_element_by_selector -p 'selector=svg:has(> use[href="#avatar"])'
 dsb_b run wait_for_url -p "url=**/friendsList" -p timeoutMs=10000
 shot dsb_b 06-bob-friends.png
 
-dsb_a close
-dsb_b close
+finish dsb_a
+finish dsb_b
 ls -la "$OUT"

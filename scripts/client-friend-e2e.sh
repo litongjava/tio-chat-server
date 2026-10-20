@@ -114,6 +114,6 @@ MEMBERS=$(api GET "/api/im/room/group/listMember?roomId=$RID" "$TA2" | json "len
 echo "group members: $MEMBERS"
 [ "$MEMBERS" = 4 ]
 
-dsb_a close
-dsb_b close
+finish dsb_a
+finish dsb_b
 ls -la "$OUT"

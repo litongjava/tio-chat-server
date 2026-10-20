@@ -15,6 +15,7 @@
 - `scripts/client-group-e2e.sh`：群聊与消息撤回。
 - `scripts/client-upload-e2e.sh`：发送图片和文件（需要 MinIO，见 README“文件存储”一节）。
 - `scripts/client-friend-e2e.sh`：按账号搜索加好友、按群号申请加群。
+- `scripts/client-feed-e2e.sh`：朋友圈发布、图片动态、点赞评论与实时通知（需要 MinIO）。
 - `scripts/client-ai-e2e.sh`：AI 助手对话（需要先用 `scripts/setup-deepseek.sh` 登记模型，见 README“AI 模型”一节）。
 
 ## 运行
@@ -35,6 +36,7 @@ sg docker -c "scripts/client-group-e2e.sh client-e2e-out"
 sg docker -c "scripts/client-upload-e2e.sh client-e2e-out"
 sg docker -c "scripts/client-ai-e2e.sh client-e2e-out"
 sg docker -c "scripts/client-friend-e2e.sh client-e2e-out"
+sg docker -c "scripts/client-feed-e2e.sh client-e2e-out"
 ```
 
 两个用户分别使用 `127.0.0.1` 和 `localhost` 两个源打开页面，各自的 localStorage 互不影响；每次登录前会清空该源的本地状态，保证首次使用引导、登录表单的流程一致。
@@ -105,6 +107,26 @@ sg docker -c "scripts/client-friend-e2e.sh client-e2e-out"
 6. alice 打开“群通知”，显示 bob 的申请和留言，点击“接受”；bob 的会话列表出现该群，打开后显示“bob 加入群聊”，可以发言，群成员为 4 人。
 
 截图：`21-search-user.png`、`22-add-friend-verify.png`、`23-bob-friend-notice.png`、`24-bob-accepted.png`、`25-alice-new-chat.png`、`26-alice-chat-with-bob.png`、`27-search-group.png`、`28-alice-group-notice.png`、`29-bob-joined-group.png`。
+
+## 朋友圈
+
+朋友圈是独立窗口 `/dynamic`（左侧“动态”图标），以新标签页打开。桌面端的发布框只能发纯文本，图片和视频动态由移动端发布：先用 `ossToken` 取得预签名地址上传素材，再调用 `pushFeed`。`scripts/client-feed-e2e.sh` 用 `make-friends.sh` 生成一对好友，然后：
+
+1. alice 打开朋友圈窗口（显示“暂无动态”），点击“+”，输入文字后点击“发布”，提示“发布成功”，列表出现新动态。
+2. alice 以 `MOBILE` 设备登录取得令牌，按移动端的流程把一张 160×100 的 PNG 上传到 MinIO 并发布图片动态。
+3. bob 的主窗口通过 `feedSendMsg` 推送实时显示“动态”图标上的未读数；打开朋友圈，两条动态按时间倒序显示，图片从 MinIO 加载成功。
+4. bob 对文字动态点“赞”（变为“已赞”），再点“评论”输入内容并发送，评论显示在动态下方。
+5. alice 一直打开着的朋友圈窗口收到 `feedNotify` 推送（主窗口处理后经共享状态同步到朋友圈窗口），不刷新即显示 bob 的点赞和评论，“评论通知”角标为 2。
+6. alice 点击动态进入详情页，显示点赞的人和评论列表。
+
+截图：`31-feed-publish.png`、`32-bob-feed-badge.png`、`33-bob-feed.png`、`34-bob-liked-commented.png`、`35-alice-feed-notified.png`、`36-alice-feed-detail.png`。
+
+测试中修复的服务端问题：
+
+- 发布接口只从 `images` 读取素材，客户端的类型定义使用 `urls`（视频为 `videoUrl`），按客户端定义传参会提示“请至少上传一条素材”。现在三个字段都可以；视频动态在列表中以 `videoUrl` 返回，客户端才会显示为视频。
+- 同一秒内发布的两条动态顺序不确定，现在按发布时间和编号倒序。
+
+客户端自身的限制：桌面端朋友圈窗口的“评论通知”弹窗没有数据来源，始终显示“暂无评论通知”；点赞人自己也会收到 `feedNotify`（与原服务端一致，用于多端同步），所以操作者的角标同样会增加。
 
 ## AI 助手（DeepSeek）
 
