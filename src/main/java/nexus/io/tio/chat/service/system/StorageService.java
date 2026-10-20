@@ -32,7 +32,8 @@ public class StorageService {
       return qiniu(config);
     case "minio":
       String safeScene = scene == null || scene.isBlank() ? "chat" : scene;
-      String safeName = fileName == null || fileName.isBlank() ? "file" : fileName;
+      // 文件名中的路径分隔符会让对象落到别的目录，统一替换掉
+      String safeName = fileName == null || fileName.isBlank() ? "file" : fileName.replace('/', '_').replace('\\', '_');
       return minio(config, safeScene + "/" + System.currentTimeMillis() + "_" + safeName);
     default:
       throw ChatErrors.of("不支持的存储引擎: " + engine);
@@ -82,11 +83,13 @@ public class StorageService {
     byte[] kSigning = hmac("HmacSHA256", kService, "aws4_request");
     String signature = HexFormat.of().formatHex(hmac("HmacSHA256", kSigning, stringToSign));
     String uploadUrl = base + path + "?" + query + "&X-Amz-Signature=" + signature;
+    // 下载地址同样做路径编码，文件名含空格、#、% 等字符时浏览器才能正确访问
+    String encodedKey = encodePath(objectKey);
     String downloadUrl;
     if (urlPrefix != null && !urlPrefix.isBlank()) {
-      downloadUrl = urlPrefix.endsWith("/") ? urlPrefix + objectKey : urlPrefix + "/" + objectKey;
+      downloadUrl = urlPrefix.endsWith("/") ? urlPrefix + encodedKey : urlPrefix + "/" + encodedKey;
     } else {
-      downloadUrl = base + "/" + bucket + "/" + objectKey;
+      downloadUrl = base + "/" + bucket + "/" + encodedKey;
     }
     return Kv.by("uploadUrl", uploadUrl).set("downloadUrl", downloadUrl).set("objectKey", objectKey);
   }
