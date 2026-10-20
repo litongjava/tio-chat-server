@@ -36,6 +36,9 @@ public class DbRows {
     if (columns.contains("create_time") && row.get("create_time") == null) {
       row.set("create_time", LocalDateTime.now());
     }
+    if (columns.contains("update_time") && row.get("update_time") == null) {
+      row.set("update_time", LocalDateTime.now());
+    }
     if (columns.contains("tenant_id") && row.get("tenant_id") == null) {
       row.set("tenant_id", 1L);
     }

@@ -18,13 +18,16 @@ public class ChatExceptionHandler implements TioBootExceptionHandler {
   @Override
   public Object handler(HttpRequest request, Throwable e) {
     String path = request.getRequestURI();
-    if (e instanceof ParameterValidationException) {
-      return ChatResp.toR(RespBodyVo.fail(ChatCode.VALID_EX, e.getMessage()), path);
+    if (e instanceof ParameterValidationException || e.getClass().getName().endsWith("JSONException")) {
+      return ChatResp.toR(RespBodyVo.fail(ChatCode.VALID_EX, e instanceof ParameterValidationException ? e.getMessage() : "请求参数格式错误"), path);
     }
     if (e instanceof BusinessException) {
       // 客户端约定 HTTP 状态恒为 200，业务码放在响应体 code 中
       BusinessException business = (BusinessException) e;
       return ChatResp.toR(RespBodyVo.fail(ChatErrors.chatCode(business), business.getMessage()), path);
+    }
+    if (e.getMessage() != null && e.getMessage().contains("Duplicate entry")) {
+      return ChatResp.toR(RespBodyVo.fail(ChatCode.OPERATION_EX, "数据已存在"), path);
     }
     log.error("request failed: {}", path, e);
     return ChatResp.toR(RespBodyVo.fail(ChatCode.SERVER_ERROR, "系统繁忙，请稍后再试"), path);

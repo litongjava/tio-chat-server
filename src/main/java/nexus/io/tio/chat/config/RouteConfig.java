@@ -1,6 +1,7 @@
 package nexus.io.tio.chat.config;
 
 import nexus.io.tio.boot.server.TioBootServer;
+import nexus.io.tio.chat.config.route.BaseRouteConfig;
 import nexus.io.tio.chat.config.route.ImChatRouteConfig;
 import nexus.io.tio.chat.config.route.ImFeedRouteConfig;
 import nexus.io.tio.chat.config.route.ImFriendRouteConfig;
@@ -28,5 +29,6 @@ public class RouteConfig {
     new ImMiscRouteConfig().config(r);
     new ImFeedRouteConfig().config(r);
     new SystemRouteConfig().config(r);
+    new BaseRouteConfig().config(r);
   }
 }
