@@ -3,6 +3,7 @@ package nexus.io.tio.chat.ws.call;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -86,6 +87,10 @@ public class CallService {
   }
 
   public void respond(long uid, Long callerUid, Long roomId, Integer accepted) {
+    if (callerUid != null && (roomId == null || !Objects.equals(store().creator(roomId), callerUid) || store().isClosed(roomId))) {
+      Long pending = pendingRoom(callerUid, uid);
+      roomId = pending == null ? roomId : pending;
+    }
     if (accepted == null || roomId == null) {
       return;
     }
@@ -119,9 +124,38 @@ public class CallService {
   }
 
   public void forwardSignal(long senderUid, Long roomId, String signal, String signalType) {
+    if (roomId == null || !store().isMember(senderUid, roomId)) {
+      Long active = activeRoom(senderUid);
+      roomId = active == null ? roomId : active;
+    }
+    if (roomId == null) {
+      return;
+    }
     Kv data = Kv.by("senderId", senderUid).set("roomId", roomId).set("signal", signal).set("signalType", signalType)
         .set("timestamp", System.currentTimeMillis());
     notifyRoom(roomId, senderUid, WsRespType.WEBRTC_SIGNAL, data);
+  }
+
+  /**
+   * 桌面客户端的来电窗口取的是接听方当前打开的会话作为 roomId，接听方正在看其他会话时应答和信令带的是错误的房间，
+   * 没有打开会话时不带房间：应答时改用呼叫方发起、且接听方所在的通话房间，信令改用发送方已加入的通话房间
+   */
+  private Long pendingRoom(long callerUid, long uid) {
+    for (Long roomId : store().userRooms(callerUid)) {
+      if (!store().isClosed(roomId) && roomUsers(roomId).contains(uid)) {
+        return roomId;
+      }
+    }
+    return null;
+  }
+
+  private Long activeRoom(long uid) {
+    for (Long roomId : store().userRooms(uid)) {
+      if (!store().isClosed(roomId)) {
+        return roomId;
+      }
+    }
+    return null;
   }
 
   public void forwardMediaControl(long senderUid, Kv control) {
