@@ -36,6 +36,7 @@ public class FeedService {
   public static final String NOT_ANYONE = "notAnyone";
   public static final String PART_VISIBLE = "partVisible";
   public static final int MEDIA_WORD = 0;
+  public static final int MEDIA_VIDEO = 2;
   public static final int TARGET_TYPE_TAG = 1;
   public static final int TARGET_TYPE_USER = 2;
 
@@ -90,13 +91,30 @@ public class FeedService {
     }
     Integer mediaType = Values.toInt(param.get("mediaType"));
     if (mediaType != null && mediaType != MEDIA_WORD) {
-      List<Object> images = param.get("images") instanceof List ? (List<Object>) param.get("images") : List.of();
+      List<Object> images = mediaUrls(param, mediaType);
       ChatErrors.require(!images.isEmpty(), "请至少上传一条素材!");
       for (int i = 0; i < images.size(); i++) {
         DbRows.save("im_feed_media", Row.by("feed_id", feedId).set("url", String.valueOf(images.get(i))).set("sort", i)
             .set("create_by", uid));
       }
     }
+  }
+
+  /**
+   * 素材地址取 images；客户端类型定义中的 urls、videoUrl 也兼容
+   */
+  @SuppressWarnings("unchecked")
+  private List<Object> mediaUrls(Kv param, int mediaType) {
+    for (String key : new String[] { "images", "urls" }) {
+      if (param.get(key) instanceof List && !((List<Object>) param.get(key)).isEmpty()) {
+        return (List<Object>) param.get(key);
+      }
+    }
+    String videoUrl = param.getStr("videoUrl");
+    if (mediaType == MEDIA_VIDEO && videoUrl != null && !videoUrl.isBlank()) {
+      return List.of(videoUrl);
+    }
+    return List.of();
   }
 
   private List<Long> longs(Object value) {
@@ -152,7 +170,7 @@ public class FeedService {
       params.add(LocalDateTime.ofInstant(Instant.ofEpochMilli(Long.parseLong(cursor)), ZoneId.systemDefault()));
     }
     params.add(pageSize);
-    List<Kv> rows = Db.findMaps("select *" + where + " order by create_time desc limit ?", params.toArray());
+    List<Kv> rows = Db.findMaps("select *" + where + " order by create_time desc, id desc limit ?", params.toArray());
     if (rows.isEmpty()) {
       return CursorPageBaseResp.empty();
     }
@@ -196,7 +214,7 @@ public class FeedService {
   }
 
   public Kv latestByUser(Long targetUid, long uid) {
-    Long feedId = Db.queryLong("select id from im_feed where uid=? and is_del=0 order by create_time desc limit 1", targetUid);
+    Long feedId = Db.queryLong("select id from im_feed where uid=? and is_del=0 order by create_time desc, id desc limit 1", targetUid);
     return feedId == null ? null : detail(feedId, uid);
   }
 
@@ -235,7 +253,13 @@ public class FeedService {
       }
       Integer mediaType = Values.toInt(feed.get("media_type"));
       if (mediaType != null && mediaType != MEDIA_WORD) {
-        vo.set("urls", Db.query("select url from im_feed_media where feed_id=? and is_del=0 order by sort", feedId));
+        List<String> urls = Db.query("select url from im_feed_media where feed_id=? and is_del=0 order by sort", feedId);
+        if (mediaType == MEDIA_VIDEO && !urls.isEmpty()) {
+          // 客户端按 videoUrl 显示视频
+          vo.set("videoUrl", urls.get(0));
+        } else {
+          vo.set("urls", urls);
+        }
       }
       List<Kv> likes = likeList(feedId);
       vo.set("likeCount", likes.size()).set("hasLiked", hasLiked(uid, feedId));
