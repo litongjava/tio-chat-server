@@ -48,7 +48,9 @@ public class LoginService {
     }
     checkState(user);
     defUserService.loginSuccess(user.getLong("id"), ip);
-    return issue(user, param.getDeviceType(), param.getClientId(), ip);
+    LoginResult result = issue(user, param.getDeviceType(), param.getClientId(), ip);
+    Aop.get(LoginLogService.class).record(result.getUid(), user, ip, null, LoginLogService.SUCCESS, "登录成功");
+    return result;
   }
 
   /**
@@ -151,6 +153,7 @@ public class LoginService {
     String hashed = AccountUtils.hashPassword(password, user.getStr("salt"));
     if (!hashed.equalsIgnoreCase(user.getStr("password"))) {
       Aop.get(DefUserService.class).passwordError(user.getLong("id"));
+      Aop.get(LoginLogService.class).record(null, user, null, null, LoginLogService.PASSWORD_ERROR, "账号密码错误");
       throw ChatErrors.of(ChatCode.OPERATION_EX, "用户名或密码错误");
     }
   }

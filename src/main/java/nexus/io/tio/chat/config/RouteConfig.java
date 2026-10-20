@@ -3,6 +3,7 @@ package nexus.io.tio.chat.config;
 import nexus.io.tio.boot.server.TioBootServer;
 import nexus.io.tio.chat.config.route.ImChatRouteConfig;
 import nexus.io.tio.chat.config.route.ImFriendRouteConfig;
+import nexus.io.tio.chat.config.route.ImMiscRouteConfig;
 import nexus.io.tio.chat.config.route.ImRoomRouteConfig;
 import nexus.io.tio.chat.config.route.ImUserRouteConfig;
 import nexus.io.tio.chat.config.route.OauthRouteConfig;
@@ -22,5 +23,6 @@ public class RouteConfig {
     new ImChatRouteConfig().config(r);
     new ImFriendRouteConfig().config(r);
     new ImRoomRouteConfig().config(r);
+    new ImMiscRouteConfig().config(r);
   }
 }
