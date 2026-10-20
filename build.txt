@@ -1,0 +1,14 @@
+[win.env]
+set JAVA_HOME=D:\java\jdk-21
+
+[win.build]
+mvn clean package -DskipTests -Dgpg.skip -Pproduction
+
+[linux.env]
+export JAVA_HOME=/usr/java/jdk-21.0.6
+
+[linux.build]
+mvn clean package -DskipTests -Dgpg.skip -Pproduction
+
+[mac.build]
+mvn clean package -DskipTests -Dgpg.skip -Pproduction
