@@ -790,6 +790,129 @@
     })
   }
 
+  // ---------- AI streaming (ai_message_send_stream / ai_message_cancel_stream) ----------
+  const aiStreams = new Map()
+
+  function streamError(status) {
+    if (status === 406) {
+      return 'token过期，请刷新后重试'
+    }
+    if (status === 401) {
+      return '请重新登录'
+    }
+    return '请求失败，状态码: ' + status
+  }
+
+  // Opens the SSE request. The server reports auth failures as a JSON body, so a JSON reply is
+  // turned into an error (after one token refresh for 406), like the plain HTTP requests.
+  async function openAiStream(body, signal) {
+    for (let attempt = 0; attempt <= 1; attempt++) {
+      const headers = {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+        Authorization: BASIC_AUTH
+      }
+      const token = auth.get().token
+      if (token) {
+        headers.token = token
+      }
+      const res = await fetch(buildUrl(IM_URLS.messageSendStream[1]), {
+        method: IM_URLS.messageSendStream[0],
+        headers,
+        body: JSON.stringify(body || {}),
+        signal
+      })
+      if (!res.ok) {
+        throw streamError(res.status)
+      }
+      if (!(res.headers.get('content-type') || '').includes('application/json')) {
+        return res
+      }
+      const result = await res.json().catch(() => null)
+      const code = result && result.code
+      if (code === 406 && attempt === 0) {
+        await refreshToken()
+        continue
+      }
+      throw code === 406 || code === 401 ? streamError(code) : (result && result.msg) || '请求失败'
+    }
+    throw streamError(406)
+  }
+
+  // Mirrors the Rust command: once the response headers arrive the command returns, and the body is
+  // parsed in the background. Every `data:` line becomes a "chunk" event with the raw payload, and the
+  // end of the stream sends "done" with all payloads concatenated (also after a read error).
+  async function aiSendStream(args) {
+    const requestId = args.requestId
+    const channel = channelStream(args.onEvent)
+    const event = (eventType, data, error) => ({ eventType, data: data ?? null, error: error ?? null, requestId })
+    const controller = new AbortController()
+    let res
+    try {
+      res = await openAiStream(args.body, controller.signal)
+    } catch (e) {
+      const message = typeof e === 'string' ? e : String((e && e.message) || e)
+      channel.send(event('error', null, message))
+      throw message
+    }
+    aiStreams.set(requestId, controller)
+    ;(async () => {
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder('utf-8')
+      let buffer = ''
+      let full = ''
+      const handleText = (text) => {
+        buffer += text
+        let pos
+        while ((pos = buffer.indexOf('\n\n')) >= 0) {
+          const message = buffer.slice(0, pos)
+          buffer = buffer.slice(pos + 2)
+          for (const line of message.split(/\r?\n/)) {
+            if (line.startsWith('data:')) {
+              const data = line.startsWith('data: ') ? line.slice(6) : line.slice(5)
+              full += data
+              channel.send(event('chunk', data))
+            }
+          }
+        }
+      }
+      try {
+        for (;;) {
+          const { done, value } = await reader.read()
+          if (done) {
+            handleText(decoder.decode())
+            break
+          }
+          handleText(decoder.decode(value, { stream: true }))
+        }
+      } catch (e) {
+        if (controller.signal.aborted) {
+          // cancelled: the Rust task is aborted and sends nothing more
+          return
+        }
+        channel.send(event('error', null, String((e && e.message) || e)))
+      }
+      if (controller.signal.aborted) {
+        return
+      }
+      // like the Rust JoinHandle, the entry stays registered after the stream ends
+      channel.send(event('done', full))
+      channel.end()
+    })()
+    return null
+  }
+
+  function aiCancelStream(args) {
+    const requestId = args.requestId
+    const controller = aiStreams.get(requestId)
+    if (!controller) {
+      throw '未找到指定请求ID的任务: ' + requestId
+    }
+    aiStreams.delete(requestId)
+    controller.abort()
+    return null
+  }
+
   // ---------- plugin commands ----------
   function pluginCommand(plugin, command, args, options) {
     switch (plugin) {
@@ -1205,6 +1328,8 @@
       })
     },
     upload_file_put: (args) => uploadPut(args),
+    ai_message_send_stream: (args) => aiSendStream(args),
+    ai_message_cancel_stream: (args) => aiCancelStream(args),
     qiniu_upload_resumable() {
       throw 'qiniu resumable upload is not available in the browser shim; use the MinIO storage engine'
     }
