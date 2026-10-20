@@ -3,6 +3,7 @@ package nexus.io.tio.chat.ws;
 import lombok.extern.slf4j.Slf4j;
 import nexus.io.jfinal.aop.Aop;
 import nexus.io.tio.chat.context.LoginSession;
+import nexus.io.tio.chat.ws.call.CallService;
 import nexus.io.tio.core.ChannelContext;
 import nexus.io.tio.core.DefaultAioListener;
 
@@ -20,6 +21,7 @@ public class ChatConnectionListener extends DefaultAioListener {
     }
     try {
       Aop.get(OnlineService.class).offline(session.getUid(), session.getClientId());
+      Aop.get(CallService.class).leaveAll(session.getUid());
     } catch (Exception e) {
       log.error("sync offline failed, uid={}", session.getUid(), e);
     }

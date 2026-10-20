@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Minimal WebSocket client for smoke tests.
- * Usage: java WsClient.java <url> <seconds> [message ...]
+ * Usage: java WsClient.java <url> <seconds> [message | sleep:millis ...]
  * Prints every received frame prefixed with "RECV ".
  */
 public class WsClient {
@@ -52,6 +52,10 @@ public class WsClient {
     }
     System.out.println("CONNECTED");
     for (int i = 2; i < args.length; i++) {
+      if (args[i].startsWith("sleep:")) {
+        Thread.sleep(Long.parseLong(args[i].substring(6)));
+        continue;
+      }
       ws.sendText(args[i], true).join();
       System.out.println("SENT " + args[i]);
     }

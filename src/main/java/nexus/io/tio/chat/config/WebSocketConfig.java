@@ -12,6 +12,7 @@ import nexus.io.tio.chat.ws.ChatWebSocketHandler;
 import nexus.io.tio.chat.ws.PushService;
 import nexus.io.tio.chat.ws.ReadProcessor;
 import nexus.io.tio.chat.ws.WsMessageDispatcher;
+import nexus.io.tio.chat.ws.call.CallProcessors;
 import nexus.io.tio.core.Tio;
 import nexus.io.tio.server.ServerTioConfig;
 
@@ -27,6 +28,7 @@ public class WebSocketConfig {
 
     WsMessageDispatcher.register(15, new AckProcessor());
     WsMessageDispatcher.register(16, new ReadProcessor());
+    CallProcessors.register();
 
     PushService pushService = Aop.get(PushService.class);
     pushService.subscribe();
