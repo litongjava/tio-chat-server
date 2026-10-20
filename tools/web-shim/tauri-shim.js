@@ -134,6 +134,16 @@
   if (bus) {
     bus.onmessage = (e) => {
       const msg = e.data || {}
+      if (msg.wsSend !== undefined) {
+        wsSend(msg.wsSend)
+        return
+      }
+      if (msg.closeLabel !== undefined) {
+        if (msg.closeLabel === LABEL) {
+          closeWindow()
+        }
+        return
+      }
       if (targetMatches(msg.target)) {
         deliver(msg.event, msg.payload)
       }
@@ -270,46 +280,71 @@
     attempts: 0
   }
 
+  // Server push type -> [event, target window]. Like the Rust layer, chat and contact events go to
+  // the main window only, while call, login and session events reach every window (tab).
   const WS_EVENTS = {
-    loginQrCode: 'ws-login-qr-code',
-    waitingAuthorize: 'ws-waiting-authorize',
-    loginSuccess: 'ws-login-success',
-    receiveMessage: 'ws-receive-message',
-    msgRecall: 'ws-msg-recall',
-    msgMarkItem: 'ws-msg-mark-item',
-    online: 'ws-online',
-    offline: 'ws-offline',
-    userStateChange: 'ws-user-state-change',
-    notifyEvent: 'ws-request-notify-event',
-    groupSetAdmin: 'ws-group-set-admin-success',
-    newApply: 'ws-request-new-apply',
-    requestApprovalFriend: 'ws-request-approval-friend',
-    memberChange: 'ws-member-change',
-    roomInfoChange: 'ws-room-info-change',
-    myRoomInfoChange: 'ws-my-room-info-change',
-    roomGroupNoticeMsg: 'ws-room-group-notice-msg',
-    roomEditGroupNoticeMsg: 'ws-room-edit-group-notice-msg',
-    roomDissolution: 'ws-room-dissolution',
-    VideoCallRequest: 'ws-video-call-request',
-    CallAccepted: 'ws-call-accepted',
-    CallRejected: 'ws-call-rejected',
-    RoomClosed: 'ws-room-closed',
-    WEBRTC_SIGNAL: 'ws-webrtc-signal',
-    JoinVideo: 'ws-join-video',
-    LeaveVideo: 'ws-leave-video',
-    DROPPED: 'ws-dropped',
-    CANCEL: 'ws-cancel',
-    TIMEOUT: 'ws-timeout',
-    tokenExpired: 'ws-token-expired',
-    invalidUser: 'ws-invalid-user',
-    deleteFriend: 'ws-delete-friend',
-    feedSendMsg: 'ws-feed-send-msg',
-    feedNotify: 'ws-feed-notify'
+    loginQrCode: ['ws-login-qr-code', null],
+    waitingAuthorize: ['ws-waiting-authorize', null],
+    loginSuccess: ['ws-login-success', 'home'],
+    receiveMessage: ['ws-receive-message', 'home'],
+    msgRecall: ['ws-msg-recall', 'home'],
+    msgMarkItem: ['ws-msg-mark-item', 'home'],
+    online: ['ws-online', 'home'],
+    offline: ['ws-offline', 'home'],
+    userStateChange: ['ws-user-state-change', 'home'],
+    notifyEvent: ['ws-request-notify-event', 'home'],
+    groupSetAdmin: ['ws-group-set-admin-success', 'home'],
+    newApply: ['ws-request-new-apply', 'home'],
+    requestApprovalFriend: ['ws-request-approval-friend', 'home'],
+    memberChange: ['ws-member-change', 'home'],
+    roomInfoChange: ['ws-room-info-change', 'home'],
+    myRoomInfoChange: ['ws-my-room-info-change', 'home'],
+    roomGroupNoticeMsg: ['ws-room-group-notice-msg', 'home'],
+    roomEditGroupNoticeMsg: ['ws-room-edit-group-notice-msg', 'home'],
+    roomDissolution: ['ws-room-dissolution', 'home'],
+    VideoCallRequest: ['ws-video-call-request', null],
+    CallAccepted: ['ws-call-accepted', null],
+    CallRejected: ['ws-call-rejected', null],
+    RoomClosed: ['ws-room-closed', null],
+    WEBRTC_SIGNAL: ['ws-webrtc-signal', null],
+    JoinVideo: ['ws-join-video', null],
+    LeaveVideo: ['ws-leave-video', null],
+    DROPPED: ['ws-dropped', null],
+    CANCEL: ['ws-cancel', null],
+    TIMEOUT: ['ws-timeout', null],
+    tokenExpired: ['ws-token-expired', null],
+    invalidUser: ['ws-invalid-user', null],
+    deleteFriend: ['ws-delete-friend', null],
+    feedSendMsg: ['ws-feed-send-msg', 'home'],
+    feedNotify: ['ws-feed-notify', 'home']
+  }
+
+  // The tab that owns the socket (the main window) shares its state; other tabs send through it.
+  const WS_STATE_KEY = '__shim_ws_state'
+
+  function ownsSocket() {
+    return !!ws.socket && ws.socket.readyState === WebSocket.OPEN
+  }
+
+  function sharedWsState() {
+    if (ws.socket) {
+      return ws.state
+    }
+    try {
+      return localStorage.getItem(WS_STATE_KEY) || ws.state
+    } catch (e) {
+      return ws.state
+    }
   }
 
   function wsSetState(state, isReconnection) {
     ws.state = state
-    deliver('websocket-event', {
+    try {
+      localStorage.setItem(WS_STATE_KEY, state)
+    } catch (e) {
+      log('ws state store failed', e)
+    }
+    emit('websocket-event', {
       type: 'connectionStateChanged',
       state,
       is_reconnection: !!isReconnection,
@@ -318,8 +353,20 @@
   }
 
   function wsSend(data) {
-    if (ws.socket && ws.socket.readyState === WebSocket.OPEN) {
+    if (ownsSocket()) {
       ws.socket.send(typeof data === 'string' ? data : JSON.stringify(data))
+      return true
+    }
+    return false
+  }
+
+  // Secondary windows (call window, ...) have no socket of their own: relay to the owner tab.
+  function wsSendAnywhere(data) {
+    if (wsSend(data)) {
+      return true
+    }
+    if (bus && sharedWsState() === 'CONNECTED') {
+      bus.postMessage({ wsSend: data })
       return true
     }
     return false
@@ -330,7 +377,7 @@
     try {
       json = JSON.parse(text)
     } catch (e) {
-      deliver('websocket-event', { type: 'messageReceived', message: text })
+      emit('websocket-event', { type: 'messageReceived', message: text }, null)
       return
     }
     const type = json && json.type
@@ -338,14 +385,25 @@
     if (type === 'receiveMessage' && data && data.message && data.message.id) {
       wsSend({ type: '15', data: { msgId: String(data.message.id), timestamp: Date.now() } })
     }
-    const event = WS_EVENTS[type]
-    if (event) {
-      deliver(event, data === undefined ? null : data)
+    const route = WS_EVENTS[type]
+    if (route) {
+      emit(route[0], data === undefined ? null : data, route[1])
     } else if (type !== undefined) {
-      deliver('ws-unknown-message', json)
+      emit('ws-unknown-message', json, null)
     }
-    deliver('websocket-event', { type: 'messageReceived', message: json })
+    emit('websocket-event', { type: 'messageReceived', message: json }, null)
   }
+
+  // A closing main tab must not leave other tabs believing the socket is still up.
+  window.addEventListener('pagehide', () => {
+    if (ws.socket) {
+      try {
+        localStorage.setItem(WS_STATE_KEY, 'DISCONNECTED')
+      } catch (e) {
+        log('ws state store failed', e)
+      }
+    }
+  })
 
   function wsConnect(isReconnection) {
     const token = auth.get().token
@@ -449,6 +507,20 @@
       window.open(url, label)
     }
     return null
+  }
+
+  // Secondary windows were opened with window.open, so the browser lets them close themselves.
+  // Closing another window by label is relayed to its tab.
+  function closeWindow(label) {
+    if (label && label !== LABEL) {
+      if (bus) {
+        bus.postMessage({ closeLabel: label })
+      }
+      return
+    }
+    if (!PAGE_WINDOWS.has(LABEL)) {
+      setTimeout(() => window.close(), 50)
+    }
   }
 
   // ---------- in-memory file system ----------
@@ -972,6 +1044,10 @@
             return 'light'
           case 'title':
             return document.title
+          case 'close':
+          case 'destroy':
+            closeWindow(args && args.label)
+            return null
           default:
             return null
         }
@@ -1276,14 +1352,14 @@
     },
     ws_send_message(args) {
       const data = args && args.params ? args.params.data : null
-      if (!wsSend(data)) {
+      if (!wsSendAnywhere(data)) {
         throw 'WebSocket not connected'
       }
       return { success: true, message: null }
     },
-    ws_get_state: () => ws.state,
-    ws_is_connected: () => !!ws.socket && ws.socket.readyState === WebSocket.OPEN,
-    ws_get_health: () => ({ is_healthy: ws.state === 'CONNECTED', last_pong_time: null, consecutive_failures: 0, round_trip_time: null }),
+    ws_get_state: () => sharedWsState(),
+    ws_is_connected: () => ownsSocket() || (!ws.socket && sharedWsState() === 'CONNECTED'),
+    ws_get_health: () => ({ is_healthy: sharedWsState() === 'CONNECTED', last_pong_time: null, consecutive_failures: 0, round_trip_time: null }),
     ws_force_reconnect() {
       if (ws.socket) {
         ws.closing = true
