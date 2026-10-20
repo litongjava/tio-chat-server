@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tio-chat-server 测试控制台</title>
+<style>
+  :root { --bg: #f5f6f8; --panel: #fff; --line: #e3e5e9; --text: #222; --muted: #888; --primary: #13987f; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); }
+  header { padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  header input { padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; }
+  button { padding: 6px 12px; border: 0; border-radius: 4px; background: var(--primary); color: #fff; cursor: pointer; }
+  #me { margin-left: auto; color: var(--muted); }
+  main { display: grid; grid-template-columns: 260px 1fr; height: calc(100vh - 160px); }
+  #contacts { background: var(--panel); border-right: 1px solid var(--line); overflow: auto; }
+  .contact { padding: 10px 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .contact.active { background: #e8f5f2; }
+  .contact .name { font-weight: 600; }
+  .contact .text { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .badge { float: right; background: #f56c6c; color: #fff; border-radius: 9px; padding: 0 6px; font-size: 12px; }
+  #chat { display: flex; flex-direction: column; }
+  #title { padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); font-weight: 600; }
+  #messages { flex: 1; overflow: auto; padding: 12px 16px; }
+  .msg { margin: 6px 0; display: flex; flex-direction: column; }
+  .msg.mine { align-items: flex-end; }
+  .msg .meta { color: var(--muted); font-size: 12px; }
+  .msg .bubble { display: inline-block; max-width: 70%; padding: 8px 10px; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); }
+  .msg.mine .bubble { background: #d7f2ea; }
+  footer { display: flex; gap: 8px; padding: 10px 16px; background: var(--panel); border-top: 1px solid var(--line); }
+  footer input { flex: 1; padding: 8px; border: 1px solid var(--line); border-radius: 4px; }
+  #log { height: 100px; overflow: auto; margin: 0; padding: 6px 16px; font-size: 12px; background: #1f2328; color: #9fe2c9; }
+</style>
+</head>
+<body>
+<header>
+  <input id="account" placeholder="账号 / 邮箱">
+  <input id="password" type="password" placeholder="密码">
+  <button id="loginBtn">登录</button>
+  <span id="wsState">WebSocket 未连接</span>
+  <span id="me"></span>
+</header>
+<main>
+  <div id="contacts"></div>
+  <div id="chat">
+    <div id="title">请选择会话</div>
+    <div id="messages"></div>
+    <footer>
+      <input id="input" placeholder="输入消息，回车发送">
+      <button id="sendBtn">发送</button>
+    </footer>
+  </div>
+</main>
+<pre id="log"></pre>
+<script>
+  const state = { token: null, uid: null, roomId: null, ws: null, names: {} };
+  const basic = btoa('luohuo_web_pro:luohuo_web_pro_secret');
+  const $ = id => document.getElementById(id);
+
+  function log(text) {
+    const line = new Date().toLocaleTimeString() + '  ' + text + '\n';
+    $('log').textContent = line + $('log').textContent;
+  }
+
+  async function api(method, path, body) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (state.token) headers.token = state.token;
+    const resp = await fetch('/api/' + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+    const json = await resp.json();
+    if (json.code !== 200) throw new Error(json.msg || ('code ' + json.code));
+    return json.data;
+  }
+
+  async function login() {
+    const resp = await fetch('/api/oauth/anyTenant/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: basic },
+      body: JSON.stringify({ account: $('account').value, password: $('password').value, grantType: 'PASSWORD', systemType: 2, deviceType: 'PC', clientId: 'console' })
+    });
+    const json = await resp.json();
+    if (json.code !== 200) { log('登录失败：' + json.msg); return; }
+    state.token = json.data.token;
+    state.uid = json.data.uid;
+    const info = await api('GET', 'im/user/userInfo');
+    $('me').textContent = '当前用户：' + info.name + '（' + info.account + '）';
+    log('登录成功 uid=' + state.uid);
+    connect();
+    await loadContacts();
+  }
+
+  function connect() {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(proto + '://' + location.host + '/api/ws/ws?clientId=console-' + state.uid + '&Token=' + state.token);
+    state.ws = ws;
+    ws.onopen = () => { $('wsState').textContent = 'WebSocket 已连接'; log('WebSocket 已连接'); };
+    ws.onclose = () => { $('wsState').textContent = 'WebSocket 已断开'; log('WebSocket 已断开'); };
+    ws.onmessage = event => {
+      const frame = JSON.parse(event.data);
+      log('收到推送 ' + frame.type);
+      if (frame.type === 'receiveMessage') {
+        const msg = frame.data;
+        ws.send(JSON.stringify({ type: '15', data: { msgId: msg.message.id, timestamp: Date.now() } }));
+        if (msg.message.roomId === state.roomId) {
+          appendMessage(msg);
+          api('PUT', 'im/chat/msg/read', { roomId: state.roomId }).then(loadContacts).catch(() => {});
+        } else {
+          loadContacts();
+        }
+      }
+    };
+    setInterval(() => ws.readyState === 1 && ws.send(JSON.stringify({ type: '2' })), 9900);
+  }
+
+  async function loadContacts() {
+    const list = await api('GET', 'im/chat/contact/list');
+    $('contacts').innerHTML = '';
+    for (const c of list) {
+      state.names[c.roomId] = c.name;
+      const div = document.createElement('div');
+      div.className = 'contact' + (c.roomId === state.roomId ? ' active' : '');
+      div.dataset.room = c.roomId;
+      div.innerHTML = '<span class="badge" style="display:' + (c.unreadCount ? 'inline' : 'none') + '">' + c.unreadCount + '</span>'
+        + '<div class="name"></div><div class="text"></div>';
+      div.querySelector('.name').textContent = c.name;
+      div.querySelector('.text').textContent = c.text || '';
+      div.onclick = () => openRoom(c.roomId);
+      $('contacts').appendChild(div);
+    }
+  }
+
+  async function openRoom(roomId) {
+    state.roomId = roomId;
+    $('title').textContent = state.names[roomId] || roomId;
+    $('messages').innerHTML = '';
+    const page = await api('GET', 'im/chat/msg/page?roomId=' + roomId + '&pageSize=20');
+    for (const m of page.list) appendMessage(m);
+    await api('PUT', 'im/chat/msg/read', { roomId });
+    await loadContacts();
+  }
+
+  function appendMessage(m) {
+    if (document.querySelector('.msg[data-id="' + m.message.id + '"]')) return;
+    const div = document.createElement('div');
+    div.dataset.id = m.message.id;
+    div.className = 'msg' + (m.fromUser.uid === String(state.uid) ? ' mine' : '');
+    const body = m.message.body;
+    const text = typeof body === 'string' ? body : (body && (body.content || body.url || JSON.stringify(body)));
+    div.innerHTML = '<span class="meta"></span><span class="bubble"></span>';
+    div.querySelector('.meta').textContent = m.fromUser.uid + '  ' + new Date(Number(m.message.sendTime)).toLocaleTimeString();
+    div.querySelector('.bubble').textContent = text;
+    $('messages').appendChild(div);
+    $('messages').scrollTop = $('messages').scrollHeight;
+  }
+
+  async function send() {
+    const content = $('input').value.trim();
+    if (!content || !state.roomId) return;
+    const resp = await api('POST', 'im/chat/msg', { roomId: state.roomId, msgType: 1, body: { content } });
+    $('input').value = '';
+    appendMessage(resp);
+    await api('PUT', 'im/chat/msg/read', { roomId: state.roomId });
+    await loadContacts();
+    log('发送成功 msgId=' + resp.message.id);
+  }
+
+  $('loginBtn').onclick = () => login().catch(e => log(e.message));
+  $('sendBtn').onclick = () => send().catch(e => log(e.message));
+  $('input').onkeydown = e => { if (e.key === 'Enter') send().catch(err => log(err.message)); };
+</script>
+</body>
+</html>
