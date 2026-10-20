@@ -26,6 +26,7 @@ public class ChatTokenInterceptor implements HttpRequestInterceptor {
       |^/api/im/wx/portal/public.*\
       |^/api/ai/image/midjourney/notify$\
       |^/api/ai/video/giteeai/notify$\
+      |^/api/system/model/list$\
       |^/api/ws/.*\
       |^/health$\
       """.strip());
