@@ -17,6 +17,7 @@
 - `scripts/client-friend-e2e.sh`：按账号搜索加好友、按群号申请加群。
 - `scripts/client-feed-e2e.sh`：朋友圈发布、图片动态、点赞评论与实时通知（需要 MinIO）。
 - `scripts/client-call-e2e.sh`：语音、视频通话的接通、挂断、拒绝、取消与通话记录。
+- `scripts/client-qrlogin-e2e.sh`：扫码登录（手机端的扫码、确认用 curl 模拟）。
 - `scripts/client-ai-e2e.sh`：AI 助手对话（需要先用 `scripts/setup-deepseek.sh` 登记模型，见 README“AI 模型”一节）。
 
 ## 运行
@@ -39,6 +40,7 @@ sg docker -c "scripts/client-ai-e2e.sh client-e2e-out"
 sg docker -c "scripts/client-friend-e2e.sh client-e2e-out"
 sg docker -c "scripts/client-feed-e2e.sh client-e2e-out"
 sg docker -c "scripts/client-call-e2e.sh client-e2e-out"
+sg docker -c "scripts/client-qrlogin-e2e.sh client-e2e-out"
 ```
 
 两个用户分别使用 `127.0.0.1` 和 `localhost` 两个源打开页面，各自的 localStorage 互不影响；每次登录前会清空该源的本地状态，保证首次使用引导、登录表单的流程一致。
@@ -147,6 +149,19 @@ sg docker -c "scripts/client-call-e2e.sh client-e2e-out"
 截图：`41-voice-incoming.png`、`42-voice-connected-alice.png`、`43-voice-connected-bob.png`、`44-voice-record.png`、`45-video-connected-alice.png`、`46-video-connected-bob.png`、`47-rejected-alice.png`、`48-cancelled-bob.png`。
 
 测试中修复的服务端问题：桌面客户端的来电窗口把被叫方“当前打开的会话”当作通话房间，被叫方正在看其他会话时，应答和信令带的是那个会话的房间号，服务端会把信令推给无关的成员，通话无法接通。现在应答时如果房间不是该主叫方发起的通话，改用主叫方发起、被叫方所在的通话房间；信令的发送方不在所带房间的通话中时，改用发送方已加入的通话房间。被叫方没有打开任何会话时，房间号为空，客户端在处理 offer 时自己报“房间号不存在”，这是客户端的问题，服务端无法补救。
+
+## 扫码登录
+
+登录页的“扫码登录”调用 `oauth/anyTenant/qr/generate` 取得 `qrId` 和 `deviceHash`，二维码内容为 `{"type":"login","qrId":"…"}`，之后每 2 秒用 `oauth/anyTenant/qr/status/query` 查询状态：`SCANNED` 时显示“扫码成功，等待授权”，`CONFIRMED` 时响应里带有新签发的令牌，页面调用 `update_token` 保存后走自动登录进入主界面（客户端用轮询，不依赖 WebSocket 推送）。手机端用自己的登录会话依次调用 `oauth/qrcode/scan` 和 `oauth/qrcode/confirm`，测试用 curl 和 alice 的 `MOBILE` 令牌模拟。
+
+`scripts/client-qrlogin-e2e.sh`：
+
+1. 打开登录页，点击“扫码登录”，页面显示服务端生成的二维码（从页面组件读取二维码内容并解析出 `qrId`）。二维码 30 秒内有效，脚本用 DOM 点击进入页面，避免等待页面空闲时二维码过期。
+2. 手机端扫码，页面变为“扫码成功，等待授权”。
+3. 手机端确认，页面自动进入主界面，显示 alice 的会话列表；在与 bob 的会话中发送一条消息，bob 一侧用接口能查到这条消息。
+4. 已使用的二维码再次确认会失败。
+
+截图：`51-qr-code.png`、`52-qr-scanned.png`、`53-qr-logged-in.png`。
 
 ## AI 助手（DeepSeek）
 
