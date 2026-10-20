@@ -2,6 +2,8 @@ package nexus.io.tio.chat.handler.ai;
 
 import java.util.Set;
 
+import com.jfinal.kit.Kv;
+
 import nexus.io.jfinal.aop.Aop;
 import nexus.io.tio.chat.service.ai.AiCrudService;
 import nexus.io.tio.chat.utils.ChatResp;
@@ -13,6 +15,8 @@ import nexus.io.tio.http.common.HttpResponse;
 public class AiApiKeyAdminPageHandler {
   public HttpResponse handle(HttpRequest request) {
     AiCrudService crud = Aop.get(AiCrudService.class);
-    return ChatResp.ok(crud.page("ai_api_key", RequestParams.toKv(request), Set.of("name"), null));
+    Kv page = crud.page("ai_api_key", RequestParams.toKv(request), Set.of("name"), null);
+    crud.maskApiKeys(page.getAs("list"), crud.uid());
+    return ChatResp.ok(page);
   }
 }

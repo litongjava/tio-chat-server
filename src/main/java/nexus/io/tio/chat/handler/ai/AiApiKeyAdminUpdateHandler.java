@@ -15,6 +15,6 @@ public class AiApiKeyAdminUpdateHandler {
   public HttpResponse handle(HttpRequest request) {
     AiCrudService crud = Aop.get(AiCrudService.class);
     Kv body = ParameterValidationUtils.bodyKv(request);
-    return ChatResp.ok(crud.update("ai_api_key", body, null));
+    return ChatResp.ok(crud.update("ai_api_key", crud.dropMaskedApiKey(body), null));
   }
 }

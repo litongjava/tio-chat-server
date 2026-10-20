@@ -173,6 +173,10 @@ public class AiCrudService {
       if (value instanceof LocalDateTime || value instanceof Timestamp) {
         value = Values.time(value);
       }
+      // 模型的 publicStatus 是数字（0 公开、1 私有），其他表的 bit 列按布尔返回
+      if (value instanceof Boolean && "ai_model".equals(table) && "public_status".equals(column)) {
+        value = (Boolean) value ? 1 : 0;
+      }
       vo.set(entry.getKey(), value);
     }
     return vo;
@@ -192,5 +196,41 @@ public class AiCrudService {
       row.set(column, value);
     }
     return row;
+  }
+
+  // ---------------------------------------------------------------- API 密钥
+
+  private static final String MASK = "****";
+
+  /**
+   * 密钥明文只返回给创建者，其他人看到掩码
+   */
+  public Kv maskApiKey(Kv vo, Long viewer) {
+    if (vo == null) {
+      return null;
+    }
+    String key = vo.getStr("apiKey");
+    if (key != null && (viewer == null || !viewer.equals(vo.getLong("userId")))) {
+      vo.set("apiKey", key.length() <= 8 ? MASK : key.substring(0, 3) + MASK + key.substring(key.length() - 4));
+    }
+    return vo;
+  }
+
+  public List<Kv> maskApiKeys(List<Kv> list, Long viewer) {
+    for (Kv vo : list) {
+      maskApiKey(vo, viewer);
+    }
+    return list;
+  }
+
+  /**
+   * 更新时带回的掩码密钥不覆盖原值
+   */
+  public Map<String, Object> dropMaskedApiKey(Map<String, Object> body) {
+    Object key = body.get("apiKey");
+    if (key != null && key.toString().contains(MASK)) {
+      body.remove("apiKey");
+    }
+    return body;
   }
 }

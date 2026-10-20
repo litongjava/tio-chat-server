@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.jfinal.kit.Kv;
 
@@ -40,8 +41,7 @@ public class AiChatService {
     Kv role = roleId == null ? null : Db.findFirstMap("select * from ai_chat_role where id=? and deleted=0", roleId);
     ChatErrors.require(roleId == null || role != null, "聊天角色不存在");
     Long modelId = role != null && role.getLong("model_id") != null ? role.getLong("model_id")
-        : Db.queryLong("select id from ai_model where deleted=0 and status=0 and type=1 order by sort, id limit 1");
-    ChatErrors.require(modelId != null, "必须找到默认模型");
+        : Aop.get(AiGenerateService.class).defaultModelId(1, uid);
     Kv model = Db.findFirstMap("select * from ai_model where id=?", modelId);
     Kv data = Kv.by("userId", uid).set("pinned", false).set("modelId", modelId).set("model", model.getStr("model"))
         .set("temperature", model.get("temperature")).set("maxTokens", model.get("max_tokens"))
@@ -77,6 +77,20 @@ public class AiChatService {
       fillConversation(conversation);
     }
     return list;
+  }
+
+  /**
+   * 对话分页：只返回当前用户的对话（查询参数中的 uid 不生效）
+   */
+  public Kv conversationPage(long uid, Kv query) {
+    query.remove("uid");
+    query.remove("userId");
+    Kv page = crud().page(CONVERSATION, query, Set.of("title"), "user_id=?", uid);
+    List<Kv> list = page.getAs("list");
+    for (Kv conversation : list) {
+      fillConversation(conversation);
+    }
+    return page;
   }
 
   public Kv conversation(long uid, Long id) {

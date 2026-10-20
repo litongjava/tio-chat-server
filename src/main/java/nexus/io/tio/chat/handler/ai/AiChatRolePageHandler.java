@@ -13,6 +13,7 @@ import nexus.io.tio.http.common.HttpResponse;
 public class AiChatRolePageHandler {
   public HttpResponse handle(HttpRequest request) {
     AiCrudService crud = Aop.get(AiCrudService.class);
-    return ChatResp.ok(crud.page("ai_chat_role", RequestParams.toKv(request), Set.of("name", "category"), null));
+    // 公开角色（public_status=1）与自己的角色
+    return ChatResp.ok(crud.page("ai_chat_role", RequestParams.toKv(request), Set.of("name", "category"), "(public_status=1 or user_id=?)", crud.uid()));
   }
 }

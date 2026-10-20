@@ -1,9 +1,8 @@
 package nexus.io.tio.chat.handler.ai;
 
-import java.util.Set;
-
 import nexus.io.jfinal.aop.Aop;
-import nexus.io.tio.chat.service.ai.AiCrudService;
+import nexus.io.tio.chat.context.LoginContext;
+import nexus.io.tio.chat.service.ai.AiChatService;
 import nexus.io.tio.chat.utils.ChatResp;
 import nexus.io.tio.chat.utils.RequestParams;
 import nexus.io.tio.http.common.HttpRequest;
@@ -12,7 +11,6 @@ import nexus.io.tio.http.common.HttpResponse;
 /** GET /api/ai/chat/conversation/page */
 public class AiChatConversationPageHandler {
   public HttpResponse handle(HttpRequest request) {
-    AiCrudService crud = Aop.get(AiCrudService.class);
-    return ChatResp.ok(crud.page("ai_chat_conversation", RequestParams.toKv(request), Set.of("title"), null));
+    return ChatResp.ok(Aop.get(AiChatService.class).conversationPage(LoginContext.uid(), RequestParams.toKv(request)));
   }
 }

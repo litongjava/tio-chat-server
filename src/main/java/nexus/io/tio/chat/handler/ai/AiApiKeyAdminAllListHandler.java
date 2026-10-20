@@ -11,6 +11,6 @@ import nexus.io.tio.http.common.HttpResponse;
 public class AiApiKeyAdminAllListHandler {
   public HttpResponse handle(HttpRequest request) {
     AiCrudService crud = Aop.get(AiCrudService.class);
-    return ChatResp.ok(crud.list("ai_api_key", "1=1 order by id"));
+    return ChatResp.ok(crud.maskApiKeys(crud.list("ai_api_key", "1=1 order by id"), crud.uid()));
   }
 }

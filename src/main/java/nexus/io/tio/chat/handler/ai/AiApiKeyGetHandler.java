@@ -13,6 +13,6 @@ public class AiApiKeyGetHandler {
   public HttpResponse handle(HttpRequest request) {
     AiCrudService crud = Aop.get(AiCrudService.class);
     Long id = ParameterValidationUtils.requiredLong(request, "id");
-    return ChatResp.ok(crud.get("ai_api_key", id, null));
+    return ChatResp.ok(crud.maskApiKey(crud.get("ai_api_key", id, null), crud.uid()));
   }
 }

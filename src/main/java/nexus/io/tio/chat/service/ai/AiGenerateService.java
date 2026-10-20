@@ -40,10 +40,14 @@ public class AiGenerateService {
   }
 
   /**
-   * 默认的对话模型
+   * 默认模型：当前用户可见（公开或自己的）的第一个启用模型
    */
-  public Long defaultModelId(int type) {
-    Long id = Db.queryLong("select id from ai_model where deleted=0 and status=0 and type=? order by sort, id limit 1", type);
+  public Long defaultModelId(int type, long uid) {
+    Long id = Db.queryLong("""
+        select id from ai_model
+        where deleted=0 and status=0 and type=? and (public_status=0 or user_id=?)
+        order by sort, id limit 1
+        """, type, uid);
     ChatErrors.require(id != null, "必须找到默认模型");
     return id;
   }
@@ -58,7 +62,7 @@ public class AiGenerateService {
             req.get("originalContent"), req.get("prompt"), req.get("format"), req.get("tone"), req.get("language"), req.get("length"))
         : String.format("请撰写一篇关于 [%s] 的文章。文章的内容格式：%s，语气：%s，语言：%s，长度：%s。请确保涵盖主要内容，不需要除了正文内容外的其他回复。",
             req.get("prompt"), req.get("format"), req.get("tone"), req.get("language"), req.get("length"));
-    Kv target = Aop.get(AiLlmService.class).resolve(defaultModelId(1));
+    Kv target = Aop.get(AiLlmService.class).resolve(defaultModelId(1, uid));
     Kv data = Kv.create().set(req).set("userId", uid).set("modelId", target.getLong("modelId")).set("model", target.getStr("model"))
         .set("platform", target.getStr("platform"));
     long id = crud().create("ai_write", data, true);
@@ -66,7 +70,7 @@ public class AiGenerateService {
   }
 
   public void mindMapStream(ChannelContext ctx, long uid, Map<String, Object> req) {
-    Kv target = Aop.get(AiLlmService.class).resolve(defaultModelId(1));
+    Kv target = Aop.get(AiLlmService.class).resolve(defaultModelId(1, uid));
     long id = crud().create("ai_mind_map", Kv.by("prompt", req.get("prompt")).set("userId", uid).set("modelId", target.getLong("modelId"))
         .set("model", target.getStr("model")).set("platform", target.getStr("platform")), true);
     stream(ctx, target, MIND_MAP_ROLE, String.valueOf(req.get("prompt")), "ai_mind_map", id);
@@ -115,7 +119,7 @@ public class AiGenerateService {
   public long drawImage(long uid, Map<String, Object> req) {
     Long modelId = Values.toLong(req.get("modelId"));
     if (modelId == null) {
-      modelId = defaultModelId(2);
+      modelId = defaultModelId(2, uid);
     }
     Kv target = Aop.get(AiLlmService.class).resolve(modelId);
     Kv data = Kv.create().set(req).set("userId", uid).set("modelId", modelId).set("model", target.getStr("model"))
@@ -168,9 +172,13 @@ public class AiGenerateService {
 
   // ---------------------------------------------------------------- 模型与平台
 
+  /**
+   * 可选模型：公开模型（public_status=0）与当前用户自己的私有模型
+   */
   public List<Kv> modelSimpleList(Integer type, String platform) {
-    StringBuilder where = new StringBuilder("status=0");
+    StringBuilder where = new StringBuilder("status=0 and (public_status=0 or user_id=?)");
     List<Object> params = new ArrayList<>();
+    params.add(crud().uid());
     if (type != null) {
       where.append(" and type=?");
       params.add(type);
