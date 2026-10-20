@@ -1,0 +1,785 @@
+{
+ "DefGenTestTreeType2Enum": [
+  {
+   "label": "普通",
+   "text": "普通",
+   "value": "ORDINARY"
+  },
+  {
+   "label": "赠品",
+   "text": "赠品",
+   "value": "GIFT"
+  }
+ ],
+ "DefGenTestSimpleType2Enum": [
+  {
+   "label": "普通",
+   "text": "普通",
+   "value": "ORDINARY"
+  },
+  {
+   "label": "赠品",
+   "text": "赠品",
+   "value": "GIFT"
+  }
+ ],
+ "SoyComponentEnum": [
+  {
+   "label": "输入框",
+   "text": "输入框",
+   "value": "TEXT"
+  },
+  {
+   "label": "文本域",
+   "text": "文本域",
+   "value": "TEXTAREA"
+  },
+  {
+   "label": "密码框",
+   "text": "密码框",
+   "value": "PASSWORD"
+  },
+  {
+   "label": "数字框",
+   "text": "数字框",
+   "value": "NUMBER"
+  },
+  {
+   "label": "字典选择",
+   "text": "字典选择",
+   "value": "DICT_SELECT"
+  },
+  {
+   "label": "表格选择",
+   "text": "表格选择",
+   "value": "TABLE_SELECT"
+  },
+  {
+   "label": "单选框",
+   "text": "单选框",
+   "value": "DICT_RADIO"
+  },
+  {
+   "label": "复选框",
+   "text": "复选框",
+   "value": "DICT_CHECKBOX"
+  },
+  {
+   "label": "开关",
+   "text": "开关",
+   "value": "DICT_SWITCH"
+  },
+  {
+   "label": "级联",
+   "text": "级联",
+   "value": "DICT_CASCADER"
+  },
+  {
+   "label": "日期时间",
+   "text": "日期时间",
+   "value": "DATETIME"
+  },
+  {
+   "label": "日期",
+   "text": "日期",
+   "value": "DATE"
+  },
+  {
+   "label": "时间",
+   "text": "时间",
+   "value": "TIME"
+  },
+  {
+   "label": "日期区间",
+   "text": "日期区间",
+   "value": "DATERANGE"
+  },
+  {
+   "label": "日期时间区间",
+   "text": "日期时间区间",
+   "value": "DATETIMERANGE"
+  },
+  {
+   "label": "文件上传",
+   "text": "文件上传",
+   "value": "FILE_UPLOADER"
+  },
+  {
+   "label": "图片上传",
+   "text": "图片上传",
+   "value": "IMAGE_UPLOADER"
+  },
+  {
+   "label": "头像上传",
+   "text": "头像上传",
+   "value": "AVATAR_UPLOADER"
+  },
+  {
+   "label": "头像裁剪上传",
+   "text": "头像裁剪上传",
+   "value": "AVATAR_CROPPER"
+  },
+  {
+   "label": "富文本",
+   "text": "富文本",
+   "value": "FS_EDITOR_WANG"
+  },
+  {
+   "label": "富文本",
+   "text": "富文本",
+   "value": "FS_EDITOR_WANG5"
+  },
+  {
+   "label": "json",
+   "text": "json",
+   "value": "FS_JSON_EDITOR"
+  },
+  {
+   "label": "复制",
+   "text": "复制",
+   "value": "COPYABLE"
+  },
+  {
+   "label": "人性化时间格式",
+   "text": "人性化时间格式",
+   "value": "TIME_HUMANIZE"
+  }
+ ],
+ "PopupTypeEnum": [
+  {
+   "label": "对话框",
+   "text": "对话框",
+   "value": "MODAL"
+  },
+  {
+   "label": "抽屉",
+   "text": "抽屉",
+   "value": "DRAWER"
+  },
+  {
+   "label": "跳转",
+   "text": "跳转",
+   "value": "JUMP"
+  }
+ ],
+ "TplEnum": [
+  {
+   "label": "单表",
+   "text": "单表",
+   "value": "SIMPLE"
+  },
+  {
+   "label": "树结构",
+   "text": "树结构",
+   "value": "TREE"
+  },
+  {
+   "label": "主从结构",
+   "text": "主从结构",
+   "value": "MAIN_SUB"
+  }
+ ],
+ "GenTypeEnum": [
+  {
+   "label": "直接生成",
+   "text": "直接生成",
+   "value": "GEN"
+  },
+  {
+   "label": "打包下载",
+   "text": "打包下载",
+   "value": "ZIP"
+  }
+ ],
+ "TemplateEnum": [
+  {
+   "label": "后端",
+   "text": "后端",
+   "value": "BACKEND"
+  },
+  {
+   "label": "前端",
+   "text": "前端",
+   "value": "WEB_PLUS"
+  },
+  {
+   "label": "前端(Soybean)",
+   "text": "前端(Soybean)",
+   "value": "WEB_SOYBEAN"
+  },
+  {
+   "label": "前端(vben5)",
+   "text": "前端(vben5)",
+   "value": "WEB_VBEN5"
+  }
+ ],
+ "FileOverrideStrategyEnum": [
+  {
+   "label": "覆盖",
+   "text": "覆盖",
+   "value": "OVERRIDE"
+  },
+  {
+   "label": "新增",
+   "text": "新增",
+   "value": "ADD"
+  },
+  {
+   "label": "忽略",
+   "text": "忽略",
+   "value": "IGNORE"
+  },
+  {
+   "label": "存在时忽略",
+   "text": "存在时忽略",
+   "value": "EXIST_IGNORE"
+  }
+ ],
+ "EntitySuperClassEnum": [
+  {
+   "label": "",
+   "text": "",
+   "value": "NONE"
+  }
+ ],
+ "SuperClassEnum": [
+  {
+   "label": "",
+   "text": "",
+   "value": "NONE_CS"
+  },
+  {
+   "label": "",
+   "text": "",
+   "value": "NONE"
+  }
+ ],
+ "ComponentEnum": [
+  {
+   "label": "输入框",
+   "text": "输入框",
+   "value": "PLUS_INPUT"
+  },
+  {
+   "label": "输入框组",
+   "text": "输入框组",
+   "value": "PLUS_INPUT_GROUP"
+  },
+  {
+   "label": "密码框",
+   "text": "密码框",
+   "value": "PLUS_INPUT_PASSWORD"
+  },
+  {
+   "label": "搜索框",
+   "text": "搜索框",
+   "value": "PLUS_INPUT_SEARCH"
+  },
+  {
+   "label": "文本域",
+   "text": "文本域",
+   "value": "PLUS_INPUT_TEXT_AREA"
+  },
+  {
+   "label": "数字框",
+   "text": "数字框",
+   "value": "PLUS_INPUT_NUMBER"
+  },
+  {
+   "label": "自动完成",
+   "text": "自动完成",
+   "value": "PLUS_AUTO_COMPLETE"
+  },
+  {
+   "label": "下拉框",
+   "text": "下拉框",
+   "value": "PLUS_SELECT"
+  },
+  {
+   "label": "Api下拉框",
+   "text": "Api下拉框",
+   "value": "PLUS_API_SELECT"
+  },
+  {
+   "label": "Api树",
+   "text": "Api树",
+   "value": "PLUS_API_TREE"
+  },
+  {
+   "label": "树选择",
+   "text": "树选择",
+   "value": "PLUS_TREE_SELECT"
+  },
+  {
+   "label": "Api树选择",
+   "text": "Api树选择",
+   "value": "PLUS_API_TREE_SELECT"
+  },
+  {
+   "label": "单选按钮",
+   "text": "单选按钮",
+   "value": "PLUS_RADIO_BUTTON_GROUP"
+  },
+  {
+   "label": "Api单选框",
+   "text": "Api单选框",
+   "value": "PLUS_API_RADIO_GROUP"
+  },
+  {
+   "label": "单选框",
+   "text": "单选框",
+   "value": "PLUS_RADIO_GROUP"
+  },
+  {
+   "label": "开关",
+   "text": "开关",
+   "value": "PLUS_SWITCH"
+  },
+  {
+   "label": "复选框",
+   "text": "复选框",
+   "value": "PLUS_CHECKBOX"
+  },
+  {
+   "label": "复选组",
+   "text": "复选组",
+   "value": "PLUS_CHECKBOX_GROUP"
+  },
+  {
+   "label": "级联选择",
+   "text": "级联选择",
+   "value": "PLUS_CASCADER"
+  },
+  {
+   "label": "滑动输入条",
+   "text": "滑动输入条",
+   "value": "PLUS_SLIDER"
+  },
+  {
+   "label": "评分",
+   "text": "评分",
+   "value": "PLUS_RATE"
+  },
+  {
+   "label": "穿梭框",
+   "text": "穿梭框",
+   "value": "PLUS_TRANSFER"
+  },
+  {
+   "label": "日期选择",
+   "text": "日期选择",
+   "value": "PLUS_DATE_PICKER"
+  },
+  {
+   "label": "月份选择",
+   "text": "月份选择",
+   "value": "PLUS_MONTH_PICKER"
+  },
+  {
+   "label": "日期范围选择",
+   "text": "日期范围选择",
+   "value": "PLUS_RANGE_PICKER"
+  },
+  {
+   "label": "周选择",
+   "text": "周选择",
+   "value": "PLUS_WEEK_PICKER"
+  },
+  {
+   "label": "时间选择",
+   "text": "时间选择",
+   "value": "PLUS_TIME_PICKER"
+  },
+  {
+   "label": "密码强度",
+   "text": "密码强度",
+   "value": "PLUS_STRENGTH_METER"
+  },
+  {
+   "label": "图标选择",
+   "text": "图标选择",
+   "value": "PLUS_ICON_PICKER"
+  },
+  {
+   "label": "倒计时",
+   "text": "倒计时",
+   "value": "PLUS_INPUT_COUNT_DOWN"
+  },
+  {
+   "label": "文件上传",
+   "text": "文件上传",
+   "value": "PLUS_UPLOAD"
+  },
+  {
+   "label": "头像上传",
+   "text": "头像上传",
+   "value": "PLUS_CROPPER_AVATAR"
+  },
+  {
+   "label": "分隔线",
+   "text": "分隔线",
+   "value": "PLUS_DIVIDER"
+  }
+ ],
+ "SqlConditionEnum": [
+  {
+   "label": "static ",
+   "text": "static ",
+   "value": "EQUAL"
+  },
+  {
+   "label": "static ",
+   "text": "static ",
+   "value": "NOT_EQUAL"
+  },
+  {
+   "label": "static ",
+   "text": "static ",
+   "value": "LIKE"
+  },
+  {
+   "label": "static ",
+   "text": "static ",
+   "value": "ORACLE_LIKE"
+  },
+  {
+   "label": "static ",
+   "text": "static ",
+   "value": "LIKE_LEFT"
+  },
+  {
+   "label": "static ",
+   "text": "static ",
+   "value": "LIKE_RIGHT"
+  }
+ ],
+ "VxeComponentEnum": [
+  {
+   "label": "原生输入框",
+   "text": "原生输入框",
+   "value": "INPUT"
+  },
+  {
+   "label": "原生文本域",
+   "text": "原生文本域",
+   "value": "TEXTAREA"
+  },
+  {
+   "label": "原生下拉框",
+   "text": "原生下拉框",
+   "value": "SELECT"
+  }
+ ],
+ "InterfaceExecModeEnum": [
+  {
+   "label": "实现类",
+   "text": "实现类",
+   "value": "IMPL_CLASS"
+  },
+  {
+   "label": "脚本",
+   "text": "脚本",
+   "value": "SCRIPT"
+  }
+ ],
+ "NoticeRemindModeEnum": [
+  {
+   "label": "待办",
+   "text": "待办",
+   "value": "TO_DO"
+  },
+  {
+   "label": "预警",
+   "text": "预警",
+   "value": "EARLY_WARNING"
+  },
+  {
+   "label": "提醒",
+   "text": "提醒",
+   "value": "NOTICE"
+  }
+ ],
+ "MsgInterfaceLoggingStatusEnum": [
+  {
+   "label": "初始化",
+   "text": "初始化",
+   "value": "INIT"
+  },
+  {
+   "label": "成功",
+   "text": "成功",
+   "value": "SUCCESS"
+  },
+  {
+   "label": "失败",
+   "text": "失败",
+   "value": "FAIL"
+  }
+ ],
+ "MsgTemplateTypeEnum": [
+  {
+   "label": "短信",
+   "text": "短信",
+   "value": "SMS"
+  },
+  {
+   "label": "邮件",
+   "text": "邮件",
+   "value": "MAIL"
+  },
+  {
+   "label": "站内信",
+   "text": "站内信",
+   "value": "NOTICE"
+  }
+ ],
+ "DataScopeEnum": [
+  {
+   "label": "全部",
+   "text": "全部",
+   "value": "ALL"
+  },
+  {
+   "label": "本单位及子级",
+   "text": "本单位及子级",
+   "value": "SELF_COMPANY_CHILDREN"
+  },
+  {
+   "label": "本单位",
+   "text": "本单位",
+   "value": "SELF_COMPANY"
+  },
+  {
+   "label": "本部门及子级",
+   "text": "本部门及子级",
+   "value": "SELF_DEPT_CHILDREN"
+  },
+  {
+   "label": "本部门",
+   "text": "本部门",
+   "value": "SELF_DEPT"
+  },
+  {
+   "label": "个人",
+   "text": "个人",
+   "value": "SELF"
+  },
+  {
+   "label": "自定义",
+   "text": "自定义",
+   "value": "CUSTOM"
+  }
+ ],
+ "OrgTypeEnum": [
+  {
+   "label": "单位",
+   "text": "单位",
+   "value": "COMPANY"
+  },
+  {
+   "label": "部门",
+   "text": "部门",
+   "value": "DEPT"
+  }
+ ],
+ "RoleCategoryEnum": [
+  {
+   "label": "功能角色",
+   "text": "功能角色",
+   "value": "FUNCTION"
+  },
+  {
+   "label": "桌面角色",
+   "text": "桌面角色",
+   "value": "DESKTOP"
+  },
+  {
+   "label": "数据角色",
+   "text": "数据角色",
+   "value": "DATA_SCOPE"
+  }
+ ],
+ "UserStatusEnum": [
+  {
+   "label": "正常",
+   "text": "正常",
+   "value": "NORMAL"
+  },
+  {
+   "label": "您尚未绑定任何任何企业",
+   "text": "您尚未绑定任何任何企业",
+   "value": "UNBIND_TENANT"
+  },
+  {
+   "label": "您所在的企业被禁用",
+   "text": "您所在的企业被禁用",
+   "value": "TENANT_DISABLE"
+  },
+  {
+   "label": "您被该企业禁用",
+   "text": "您被该企业禁用",
+   "value": "EMPLOYEE_DISABLE"
+  },
+  {
+   "label": "您的账号被禁用",
+   "text": "您的账号被禁用",
+   "value": "USER_DISABLE"
+  }
+ ],
+ "ActiveStatusEnum": [
+  {
+   "label": "未激活",
+   "text": "未激活",
+   "value": "NOT_ACTIVE"
+  },
+  {
+   "label": "已激活",
+   "text": "已激活",
+   "value": "ACTIVATED"
+  }
+ ],
+ "MsgTemplateCodeEnum": [
+  {
+   "label": "注册短信",
+   "text": "注册短信",
+   "value": "REGISTER_SMS"
+  },
+  {
+   "label": "注册邮件验证码",
+   "text": "注册邮件验证码",
+   "value": "REGISTER_EMAIL"
+  },
+  {
+   "label": "手机登录短信",
+   "text": "手机登录短信",
+   "value": "MOBILE_LOGIN"
+  },
+  {
+   "label": "修改手机号",
+   "text": "修改手机号",
+   "value": "MOBILE_EDIT"
+  },
+  {
+   "label": "修改邮箱",
+   "text": "修改邮箱",
+   "value": "EMAIL_EDIT"
+  },
+  {
+   "label": "修改密码",
+   "text": "修改密码",
+   "value": "PASSWORD_EDIT"
+  }
+ ],
+ "DictClassifyEnum": [
+  {
+   "label": "系统字典",
+   "text": "系统字典",
+   "value": "SYSTEM"
+  },
+  {
+   "label": "业务字典",
+   "text": "业务字典",
+   "value": "BUSINESS"
+  }
+ ],
+ "DataTypeEnum": [
+  {
+   "label": "系统值",
+   "text": "系统值",
+   "value": "SYSTEM"
+  },
+  {
+   "label": "业务值",
+   "text": "业务值",
+   "value": "BUSINESS"
+  }
+ ],
+ "ResourceTypeEnum": [
+  {
+   "label": "菜单",
+   "text": "菜单",
+   "value": "MENU"
+  },
+  {
+   "label": "按钮",
+   "text": "按钮",
+   "value": "BUTTON"
+  },
+  {
+   "label": "字段",
+   "text": "字段",
+   "value": "FIELD"
+  },
+  {
+   "label": "数据",
+   "text": "数据",
+   "value": "DATA"
+  }
+ ],
+ "ResourceOpenWithEnum": [
+  {
+   "label": "菜单",
+   "text": "菜单",
+   "value": "INNER_COMPONENT"
+  },
+  {
+   "label": "内链",
+   "text": "内链",
+   "value": "INNER_CHAIN"
+  },
+  {
+   "label": "外链",
+   "text": "外链",
+   "value": "OUTER_CHAIN"
+  }
+ ],
+ "ClientTypeEnum": [
+  {
+   "label": "开源版",
+   "text": "开源版",
+   "value": "LUOHUO_WEB"
+  },
+  {
+   "label": "基于soybean前端",
+   "text": "基于soybean前端",
+   "value": "LUOHUO_WEB_PRO_SOYBEAN"
+  },
+  {
+   "label": "基于vben5的前端",
+   "text": "基于vben5的前端",
+   "value": "LUOHUO_WEB_PRO_VBEN5"
+  }
+ ],
+ "LoginStatusEnum": [
+  {
+   "label": "登录成功",
+   "text": "登录成功",
+   "value": "SUCCESS"
+  },
+  {
+   "label": "验证码错误",
+   "text": "验证码错误",
+   "value": "CAPTCHA_ERROR"
+  },
+  {
+   "label": "账号密码错误",
+   "text": "账号密码错误",
+   "value": "PASSWORD_ERROR"
+  },
+  {
+   "label": "账号异常",
+   "text": "账号异常",
+   "value": "USER_ERROR"
+  },
+  {
+   "label": "切换租户",
+   "text": "切换租户",
+   "value": "SWITCH"
+  },
+  {
+   "label": "短信验证码错误",
+   "text": "短信验证码错误",
+   "value": "SMS_CODE_ERROR"
+  }
+ ]
+}

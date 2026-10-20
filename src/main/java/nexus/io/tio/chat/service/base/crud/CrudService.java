@@ -246,7 +246,7 @@ public class CrudService {
 
   private static final String[][] SUFFIXES = { { "_likeLeft", "like_left" }, { "_likeRight", "like_right" },
       { "_like", "like" }, { "_start", ">=" }, { "_end", "<=" }, { "_st", "st" }, { "_ed", "ed" }, { "_ge", ">=" },
-      { "_gt", ">" }, { "_le", "<=" }, { "_lt", "<" }, { "_ne", "<>" }, { "_eq", "=" }, { "_in", "in" } };
+      { "_gt", ">" }, { "_le", "<=" }, { "_lt", "<" }, { "_ne", "<>" }, { "_eq", "=" }, { "_notIn", "not in" }, { "_in", "in" } };
 
   private void appendExtra(CrudDef def, String key, Object value, StringBuilder where, List<Object> params) {
     if (value == null || (value instanceof String && ((String) value).isEmpty())) {
@@ -282,11 +282,12 @@ public class CrudService {
         where.append(" and ").append(column).append("<=?");
         params.add(dayBoundary(value.toString(), false));
       }
-      case "in" -> {
+      case "in", "not in" -> {
         List<Object> values = value instanceof Collection ? new ArrayList<>((Collection<?>) value)
             : List.of((Object[]) value.toString().split(","));
         if (!values.isEmpty()) {
-          where.append(" and ").append(column).append(" in (").append(Values.placeholders(values.size())).append(")");
+          where.append(" and ").append(column).append(" ").append(op).append(" (").append(Values.placeholders(values.size()))
+              .append(")");
           params.addAll(values);
         }
       }

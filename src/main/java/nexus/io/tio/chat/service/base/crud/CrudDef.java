@@ -17,6 +17,8 @@ public class CrudDef {
   private final Map<String, String> echo = new HashMap<>();
   private boolean cache;
   private boolean excel;
+  /** 单条查询由扩展接口提供 */
+  private boolean customGet;
 
   public CrudDef(String path, String table) {
     this.path = path;
@@ -54,6 +56,15 @@ public class CrudDef {
   public CrudDef excel() {
     this.excel = true;
     return this;
+  }
+
+  public CrudDef customGet() {
+    this.customGet = true;
+    return this;
+  }
+
+  public boolean isCustomGet() {
+    return customGet;
   }
 
   public String getPath() {

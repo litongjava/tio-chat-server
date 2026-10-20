@@ -19,6 +19,12 @@ public class HttpClients {
     return send(HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(15)).GET().build());
   }
 
+  public static String get(String url, Map<String, String> headers) {
+    HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(15)).GET();
+    headers.forEach(builder::header);
+    return send(builder.build());
+  }
+
   public static byte[] getBytes(String url) {
     try {
       HttpRequest request = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(15)).GET().build();

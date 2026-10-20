@@ -11,6 +11,7 @@ public class BaseRouteConfig {
   public static final String PREFIX = "/api/base";
 
   public void config(HttpRequestRouter r) {
+    new BaseExtRouteConfig().config(r);
     CrudRouteRegistrar registrar = Aop.get(CrudRouteRegistrar.class);
     for (CrudDef def : BaseCrudRegistry.defs()) {
       registrar.register(r, PREFIX, def);

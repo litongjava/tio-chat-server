@@ -10,7 +10,22 @@ import nexus.io.tio.chat.service.base.crud.CrudDef;
  */
 public class BaseCrudRegistry {
 
+  private static final List<CrudDef> DEFS = build();
+
   public static List<CrudDef> defs() {
+    return DEFS;
+  }
+
+  public static CrudDef find(String path) {
+    for (CrudDef def : DEFS) {
+      if (def.getPath().equals(path)) {
+        return def;
+      }
+    }
+    return null;
+  }
+
+  private static List<CrudDef> build() {
     List<CrudDef> defs = new ArrayList<>();
     defs.add(CrudDef.of("/defApplication", "def_application").like("app_key", "app_secret", "name", "version", "type", "introduce", "redirect", "remark", "url").echo("type", "dict:TENANT_APPLICATION_TYPE").cache());
     defs.add(CrudDef.of("/defResource", "def_resource").like("code", "name", "resource_type", "describe_", "path", "open_with", "component", "redirect", "icon", "sub_group", "data_scope", "custom_class", "meta_json", "tree_path").echo("resourceType", "dict:TENANT_RESOURCE_TYPE").echo("openWith", "dict:TENANT_RESOURCE_OPEN_WITH").echo("dataScope", "dict:TENANT_RESOURCE_DATA_SCOPE"));
@@ -34,7 +49,7 @@ public class BaseCrudRegistry {
     defs.add(CrudDef.of("/defMsgTemplate", "def_msg_template").like("type", "code", "name", "title", "content", "script", "sign", "param", "remarks", "target_", "remind_mode", "url", "template_code").echo("type", "dict:MSG_TEMPLATE_TYPE").echo("target", "dict:NOTICE_TARGET").echo("remindMode", "dict:NOTICE_REMIND_MODE"));
     defs.add(CrudDef.of("/extendInterfaceLog", "extend_interface_log").like("name"));
     defs.add(CrudDef.of("/extendInterfaceLogging", "extend_interface_logging").like("status", "params", "result", "error_msg").echo("status", "dict:MSG_INTERFACE_LOGGING_STATUS"));
-    defs.add(CrudDef.of("/extendMsg", "extend_msg").like("type", "param", "title", "content", "biz_type", "author", "remind_mode").echo("type", "dict:MSG_TEMPLATE_TYPE").echo("remindMode", "dict:NOTICE_REMIND_MODE"));
+    defs.add(CrudDef.of("/extendMsg", "extend_msg").like("type", "param", "title", "content", "biz_type", "author", "remind_mode").echo("type", "dict:MSG_TEMPLATE_TYPE").echo("remindMode", "dict:NOTICE_REMIND_MODE").customGet());
     defs.add(CrudDef.of("/anyone/extendNotice", "extend_notice").like("msg_id", "biz_id", "biz_type", "title", "content", "author", "url").echo("remindMode", "dict:NOTICE_REMIND_MODE").echo("target", "dict:NOTICE_TARGET"));
     return defs;
   }

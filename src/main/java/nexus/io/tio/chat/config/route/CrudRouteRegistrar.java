@@ -37,6 +37,8 @@ public class CrudRouteRegistrar {
     if (def.isExcel()) {
       r.post(p + "/export", new CrudExportHandler(def)::handle);
     }
-    r.get(p + "/{id}", new CrudGetHandler(def)::handle);
+    if (!def.isCustomGet()) {
+      r.get(p + "/{id:[0-9]+}", new CrudGetHandler(def)::handle);
+    }
   }
 }

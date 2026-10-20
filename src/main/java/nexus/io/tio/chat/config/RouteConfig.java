@@ -8,6 +8,7 @@ import nexus.io.tio.chat.config.route.ImFriendRouteConfig;
 import nexus.io.tio.chat.config.route.ImMiscRouteConfig;
 import nexus.io.tio.chat.config.route.ImRoomRouteConfig;
 import nexus.io.tio.chat.config.route.ImUserRouteConfig;
+import nexus.io.tio.chat.config.route.OauthExtRouteConfig;
 import nexus.io.tio.chat.config.route.OauthRouteConfig;
 import nexus.io.tio.chat.config.route.SystemRouteConfig;
 import nexus.io.tio.chat.handler.HealthHandler;
@@ -22,6 +23,7 @@ public class RouteConfig {
     }
     r.get("/health", new HealthHandler()::handle);
     new OauthRouteConfig().config(r);
+    new OauthExtRouteConfig().config(r);
     new ImUserRouteConfig().config(r);
     new ImChatRouteConfig().config(r);
     new ImFriendRouteConfig().config(r);

@@ -131,4 +131,56 @@ public class TokenService {
   private String deviceKey(Integer systemType, String deviceType) {
     return String.valueOf(systemType) + (deviceType == null ? "" : deviceType);
   }
+
+  /**
+   * 踢掉单个 token
+   */
+  public void kickoutToken(String token) {
+    LoginSession session = getSession(token);
+    Redis.call(jedis -> jedis.del(RedisKeys.TOKEN_SESSION + token));
+    if (session != null) {
+      String userKey = RedisKeys.USER_TOKENS + session.getUserId();
+      Redis.call(jedis -> {
+        Map<String, String> all = jedis.hgetAll(userKey);
+        for (Map.Entry<String, String> entry : all.entrySet()) {
+          if (token.equals(entry.getValue())) {
+            jedis.hdel(userKey, entry.getKey());
+          }
+        }
+        return null;
+      });
+    }
+  }
+
+  /**
+   * 当前在线的账号 id
+   */
+  public List<Long> onlineUserIds() {
+    List<Long> result = new ArrayList<>();
+    for (String key : Redis.call(jedis -> jedis.keys(RedisKeys.USER_TOKENS + "*"))) {
+      if (hasAnyToken(Long.parseLong(key.substring(RedisKeys.USER_TOKENS.length())))) {
+        result.add(Long.parseLong(key.substring(RedisKeys.USER_TOKENS.length())));
+      }
+    }
+    return result;
+  }
+
+  /**
+   * 某账号的全部有效会话
+   */
+  public List<LoginSession> sessions(Long userId) {
+    List<LoginSession> result = new ArrayList<>();
+    Map<String, String> all = Redis.call(jedis -> jedis.hgetAll(RedisKeys.USER_TOKENS + userId));
+    for (String token : all.values()) {
+      LoginSession session = getSession(token);
+      if (session != null) {
+        result.add(session);
+      }
+    }
+    return result;
+  }
+
+  public long ttl(String token) {
+    return Redis.call(jedis -> jedis.ttl(RedisKeys.TOKEN_SESSION + token));
+  }
 }
