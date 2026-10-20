@@ -13,6 +13,7 @@
 - `scripts/client-lib.sh`：测试脚本共用的 dsb 操作（登录、打开会话、发消息、截图）。
 - `scripts/client-e2e.sh`：单聊，两个浏览器任务完成登录、收发消息、查看好友列表并截图。
 - `scripts/client-group-e2e.sh`：群聊与消息撤回。
+- `scripts/client-upload-e2e.sh`：发送图片和文件（需要 MinIO，见 README“文件存储”一节）。
 
 ## 运行
 
@@ -29,6 +30,7 @@ CLIENT_DIR=<客户端源码目录> tools/web-shim/start-client.sh
 ```shell
 sg docker -c "scripts/client-e2e.sh client-e2e-out"
 sg docker -c "scripts/client-group-e2e.sh client-e2e-out"
+sg docker -c "scripts/client-upload-e2e.sh client-e2e-out"
 ```
 
 两个用户分别使用 `127.0.0.1` 和 `localhost` 两个源打开页面，各自的 localStorage 互不影响；每次登录前会清空该源的本地状态，保证首次使用引导、登录表单的流程一致。
@@ -55,6 +57,30 @@ sg docker -c "scripts/client-group-e2e.sh client-e2e-out"
 截图：`11-group-create.png`、`12-group-created.png`、`13-group-alice.png`、`14-group-bob.png`、`15-recall-menu.png`、`16-recall-alice.png`、`17-recall-bob.png`、`18-recall-bob-reload.png`。
 
 测试中发现并修复了一个服务端问题：默认群名为“创建者昵称的群组”，昵称较长时超过 `im_room_group.name` 的 16 个字符，建群失败。现在默认群名会截断昵称；手动指定或修改群名超过 16 个字符时返回“群名称不能超过16个字符”。
+
+## 图片与文件消息
+
+桌面客户端发送图片和文件时，先把文件写到本地缓存目录（`plugin-fs`），再把路径交给 Rust 命令 `upload_file_put`，由它 PUT 到服务端返回的预签名地址；收到的图片先下载到本地缓存，再用 `convertFileSrc` 显示。垫片在浏览器里补齐了这条链路：
+
+- 内存文件系统：`plugin:fs` 的 `create` / `open` / `write` / `write_file` / `read_file` / `stat` / `exists` / `copy_file` / `remove` 等命令读写同一个内存表，相对路径和 `resolve_directory` 拼出的绝对路径指向同一个文件。
+- 文件选择：`plugin:dialog|open` 用隐藏的 `<input type=file id="__shim_file_input">` 实现，选中的文件放进内存文件系统并返回路径；无头浏览器会立即取消文件选择框，垫片会保留这个输入框，测试脚本用 dsb 的 `upload_file` 给它设置文件。
+- `get_files_meta`：返回内存文件的名称、扩展名和 MIME 类型。
+- `upload_file_put`：用 XMLHttpRequest 把内存文件 PUT 到预签名地址，并通过 Channel 回报上传进度。
+- `convertFileSrc`：内存中的文件（下载好的缩略图、粘贴的图片）转换成 `blob:` 地址。
+- `plugin:http`：`fetch` / `fetch_send` / `fetch_read_body` / `fetch_cancel` 基于浏览器 `fetch` 实现，目标地址需要允许跨域。
+- `qiniu_upload_resumable`（七牛分片上传）在浏览器中不可用，联调时把存储引擎配置为 MinIO。
+
+测试步骤：
+
+1. bob 登录并打开与 alice 的会话；alice 登录并打开与 bob 的会话。
+2. alice 点击输入框上方的“文件”按钮，选择一张 160×100 的 PNG。图片插入输入框，按回车发送：客户端调用 `ossToken` 取得预签名地址，上传到 MinIO，消息体的 `url` 为 MinIO 下载地址。
+3. bob 实时收到图片消息，图片从 MinIO 下载后正常显示（`naturalWidth` 为 160）。
+4. alice 再次点击“文件”，选择 `report.txt`，在“发送文件”对话框中点击“发送 (1)”。
+5. bob 实时收到文件消息，显示文件名 `report.txt` 和大小 `6.64 KB`；alice 一侧图片和文件消息都发送成功。
+
+截图：`01-alice-sent-image-file.png`、`02-bob-received-image-file.png`。
+
+测试中修复了一个服务端问题：MinIO 下载地址中的对象名没有做 URL 编码，文件名含空格、`#`、`%` 等字符时下载地址无效；现在下载地址与上传地址使用同样的路径编码，文件名中的 `/`、`\` 也会替换为 `_`，避免对象落到其他目录。
 
 ## 说明
 
