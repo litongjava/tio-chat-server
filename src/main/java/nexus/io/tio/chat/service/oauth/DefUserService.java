@@ -1,5 +1,7 @@
 package nexus.io.tio.chat.service.oauth;
 
+import java.time.LocalDateTime;
+
 import com.jfinal.kit.Kv;
 
 import cn.hutool.core.util.RandomUtil;
@@ -64,7 +66,7 @@ public class DefUserService {
         .set("email", email == null ? "" : email).set("mobile", mobile == null ? "" : mobile).set("avatar", avatar).set("sex", sex == null ? 0 : sex).set("state", 1)
         .set("readonly", 0).set("password", AccountUtils.hashPassword(password, salt)).set("salt", salt)
         .set("password_error_num", 0).set("tenant_id", tenantId).set("create_by", id)
-        .set("create_time", new java.sql.Timestamp(System.currentTimeMillis()));
+        .set("create_time", LocalDateTime.now());
     Db.save("def_user", user);
     return getById(id);
   }

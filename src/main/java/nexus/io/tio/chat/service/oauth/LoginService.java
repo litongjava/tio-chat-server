@@ -9,6 +9,7 @@ import nexus.io.tio.chat.consts.ImConst;
 import nexus.io.tio.chat.context.LoginSession;
 import nexus.io.tio.chat.model.oauth.LoginParam;
 import nexus.io.tio.chat.model.oauth.LoginResult;
+import nexus.io.tio.chat.service.im.BlackService;
 import nexus.io.tio.chat.service.im.ImUserService;
 import nexus.io.tio.chat.utils.AccountUtils;
 import nexus.io.tio.chat.utils.ParameterValidationUtils;
@@ -63,6 +64,9 @@ public class LoginService {
       uid = imUserService.findUidByUserId(userId, tenantId);
       if (uid == null) {
         throw ChatErrors.of(ChatCode.JWT_USER_INVALID, "IM 用户不存在");
+      }
+      if (Aop.get(BlackService.class).isBlack(uid, ip)) {
+        throw ChatErrors.of("你已被拉黑");
       }
       imUserService.refreshLoginInfo(uid, ip);
     }

@@ -20,7 +20,6 @@ public class JsonConfig {
       ret.addNumber(value.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli());
     };
     TioJson.addToJson(Date.class, dateToJson);
-    TioJson.addToJson(java.sql.Date.class, dateToJson);
     TioJson.addToJson(Timestamp.class, timestampToJson);
     TioJson.addToJson(LocalDateTime.class, localDateTimeToJson);
   }

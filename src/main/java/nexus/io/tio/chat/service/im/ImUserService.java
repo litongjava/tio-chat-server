@@ -45,6 +45,7 @@ public class ImUserService {
 
     long friendRoomId = roomService.createFriendRoom(uid, ImConst.DEF_BOT_ID, tenantId);
     Aop.get(FriendService.class).createFriend(friendRoomId, uid, ImConst.DEF_BOT_ID, tenantId);
+    Aop.get(ItemService.class).registerReward(uid);
     return uid;
   }
 

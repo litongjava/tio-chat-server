@@ -1,5 +1,6 @@
 package nexus.io.tio.chat.service.im;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import nexus.io.db.activerecord.Db;
@@ -22,7 +23,7 @@ public class ContactService {
   /**
    * 新消息到达时刷新或创建会话
    */
-  public void refreshOrCreateActiveTime(long roomId, List<Long> uids, long msgId, java.sql.Timestamp activeTime,
+  public void refreshOrCreateActiveTime(long roomId, List<Long> uids, long msgId, LocalDateTime activeTime,
       long tenantId) {
     String sql = """
         insert into im_contact (id, room_id, uid, last_msg_id, active_time, is_del, tenant_id)
