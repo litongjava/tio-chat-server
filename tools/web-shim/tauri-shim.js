@@ -79,6 +79,24 @@
     }
   }
 
+  // A channel that carries several ordered messages (progress updates, body chunks).
+  function channelStream(channel) {
+    const id = channelId(channel)
+    let index = 0
+    return {
+      send(message) {
+        if (id != null) {
+          runCallback(id, { index: index++, message })
+        }
+      },
+      end() {
+        if (id != null) {
+          runCallback(id, { index: index++, end: true })
+        }
+      }
+    }
+  }
+
   // ---------- events ----------
   const listeners = new Map()
   let listenerSeq = 1
@@ -433,8 +451,347 @@
     return null
   }
 
+  // ---------- in-memory file system ----------
+  // The client stages picked, pasted and cached files on disk before uploading them by path.
+  // In the browser those bytes live here, keyed by the path string the client uses.
+  const vfs = new Map()
+  const fileHandles = new Map()
+  let resourceSeq = 1
+
+  // Every base directory resolves to APP_ROOT, so a relative path and its absolute form share one key.
+  const APP_ROOT = '/tmp/app'
+  const vfsKey = (path) =>
+    String(path || '')
+      .replace(/\\/g, '/')
+      .replace(/\/+/g, '/')
+      .replace(new RegExp('^' + APP_ROOT + '/'), '')
+
+  // convertFileSrc(): files the client cached (downloaded thumbnails, pasted images) become blob URLs.
+  const blobUrls = new Map()
+
+  function convertFileSrc(path) {
+    const key = vfsKey(path)
+    const entry = vfs.get(key)
+    if (!entry) {
+      return path
+    }
+    const cached = blobUrls.get(key)
+    if (cached && cached.entry === entry && cached.mtime === entry.mtime) {
+      return cached.url
+    }
+    const url = URL.createObjectURL(new Blob([entry.bytes], { type: entry.type }))
+    blobUrls.set(key, { entry, mtime: entry.mtime, url })
+    return url
+  }
+
+  function toBytes(data) {
+    if (data == null) {
+      return new Uint8Array(0)
+    }
+    if (data instanceof Uint8Array) {
+      return data
+    }
+    if (data instanceof ArrayBuffer) {
+      return new Uint8Array(data)
+    }
+    if (ArrayBuffer.isView(data)) {
+      return new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+    }
+    if (Array.isArray(data)) {
+      return Uint8Array.from(data)
+    }
+    if (typeof data === 'string') {
+      return new TextEncoder().encode(data)
+    }
+    return new Uint8Array(0)
+  }
+
+  function concatBytes(a, b) {
+    const out = new Uint8Array(a.byteLength + b.byteLength)
+    out.set(a, 0)
+    out.set(b, a.byteLength)
+    return out
+  }
+
+  function vfsPut(path, bytes, type) {
+    vfs.set(vfsKey(path), { bytes, type: type || mimeOf(path), mtime: Date.now() })
+  }
+
+  function vfsGet(path) {
+    const entry = vfs.get(vfsKey(path))
+    if (!entry) {
+      throw 'file not found: ' + path
+    }
+    return entry
+  }
+
+  function vfsIsDir(path) {
+    const prefix = vfsKey(path).replace(/\/$/, '') + '/'
+    for (const key of vfs.keys()) {
+      if (key.startsWith(prefix)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  const MIME = {
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    bmp: 'image/bmp',
+    svg: 'image/svg+xml',
+    mp4: 'video/mp4',
+    mp3: 'audio/mpeg',
+    wav: 'audio/wav',
+    pdf: 'application/pdf',
+    txt: 'text/plain',
+    json: 'application/json',
+    zip: 'application/zip',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  }
+
+  function extOf(path) {
+    const m = String(path || '').match(/\.([^./\\]+)$/)
+    return m ? m[1] : ''
+  }
+
+  function mimeOf(path) {
+    return MIME[extOf(path).toLowerCase()] || 'application/octet-stream'
+  }
+
+  function fileInfo(entry, isDir) {
+    const now = Date.now()
+    return {
+      isFile: !isDir,
+      isDirectory: !!isDir,
+      isSymlink: false,
+      size: isDir ? 0 : entry.bytes.byteLength,
+      mtime: isDir ? now : entry.mtime,
+      atime: isDir ? now : entry.mtime,
+      birthtime: isDir ? now : entry.mtime,
+      readonly: false,
+      fileAttributes: null,
+      dev: null,
+      ino: null,
+      mode: null,
+      nlink: null,
+      uid: null,
+      gid: null,
+      rdev: null,
+      blksize: null,
+      blocks: null
+    }
+  }
+
+  function fsStat(path) {
+    const entry = vfs.get(vfsKey(path))
+    if (entry) {
+      return fileInfo(entry, false)
+    }
+    if (vfsIsDir(path)) {
+      return fileInfo(null, true)
+    }
+    throw 'file not available in browser: ' + path
+  }
+
+  function fsOpen(path, options) {
+    const key = vfsKey(path)
+    const opts = options || {}
+    if (!vfs.has(key)) {
+      if (!opts.create && !opts.createNew && opts.write === undefined && opts.append === undefined) {
+        throw 'file not found: ' + path
+      }
+      vfsPut(key, new Uint8Array(0))
+    } else if (opts.truncate || (opts.write && !opts.append && !opts.read)) {
+      vfsPut(key, new Uint8Array(0))
+    }
+    const rid = resourceSeq++
+    fileHandles.set(rid, { key, pos: 0 })
+    return rid
+  }
+
+  function fsWrite(rid, data) {
+    const handle = fileHandles.get(rid)
+    if (!handle) {
+      throw 'bad file handle'
+    }
+    const entry = vfs.get(handle.key)
+    const bytes = toBytes(data)
+    entry.bytes = concatBytes(entry.bytes, bytes)
+    entry.mtime = Date.now()
+    return bytes.byteLength
+  }
+
+  // Files chosen through the picker are kept under a pseudo absolute path.
+  let pickSeq = 1
+
+  function storePickedFile(file) {
+    const path = '/browser-files/' + pickSeq++ + '/' + file.name
+    return file.arrayBuffer().then((buffer) => {
+      vfsPut(path, new Uint8Array(buffer), file.type || mimeOf(file.name))
+      return path
+    })
+  }
+
+  // plugin-dialog open(): a hidden <input type=file>; automation can set its files directly.
+  function dialogOpen(options) {
+    const opts = options || {}
+    if (opts.directory) {
+      return Promise.resolve(null)
+    }
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.id = '__shim_file_input'
+    input.multiple = !!opts.multiple
+    const exts = []
+    for (const filter of opts.filters || []) {
+      for (const ext of filter.extensions || []) {
+        if (ext && ext !== '*') {
+          exts.push('.' + ext)
+        }
+      }
+    }
+    if (exts.length) {
+      input.accept = exts.join(',')
+    }
+    input.style.display = 'none'
+    const old = document.getElementById('__shim_file_input')
+    if (old) {
+      old.dispatchEvent(new Event('shim-replaced'))
+    }
+    document.body.appendChild(input)
+    return new Promise((resolve) => {
+      const openedAt = Date.now()
+      const finish = (value) => {
+        input.remove()
+        resolve(value)
+      }
+      input.addEventListener('shim-replaced', () => finish(null))
+      // A headless browser cancels the chooser at once; keep the input so automation can set its files.
+      input.addEventListener('cancel', () => {
+        if (Date.now() - openedAt > 1000) {
+          finish(null)
+        }
+      })
+      input.addEventListener('change', async () => {
+        const files = Array.from(input.files || [])
+        if (!files.length) {
+          finish(null)
+          return
+        }
+        const paths = await Promise.all(files.map(storePickedFile))
+        finish(opts.multiple ? paths : paths[0])
+      })
+      try {
+        input.click()
+      } catch (e) {
+        log('file picker blocked', e)
+      }
+    })
+  }
+
+  // plugin-http: requests run through window.fetch, so the target must allow CORS.
+  const httpRequests = new Map()
+
+  async function httpCommand(command, args) {
+    switch (command) {
+      case 'fetch': {
+        const config = args.clientConfig || {}
+        const rid = resourceSeq++
+        const controller = new AbortController()
+        const init = { method: config.method || 'GET', headers: config.headers || [], signal: controller.signal }
+        if (config.data != null) {
+          init.body = toBytes(config.data)
+        }
+        httpRequests.set(rid, { url: config.url, init, controller })
+        return rid
+      }
+      case 'fetch_cancel': {
+        const req = httpRequests.get(args.rid)
+        if (req) {
+          req.controller.abort()
+        }
+        return null
+      }
+      case 'fetch_send': {
+        const req = httpRequests.get(args.rid)
+        if (!req) {
+          throw 'unknown request'
+        }
+        httpRequests.delete(args.rid)
+        const res = await fetch(req.url, req.init)
+        const rid = resourceSeq++
+        httpRequests.set(rid, { response: res })
+        return {
+          status: res.status,
+          statusText: res.statusText,
+          url: res.url,
+          headers: Array.from(res.headers.entries()),
+          rid
+        }
+      }
+      case 'fetch_read_body': {
+        const entry = httpRequests.get(args.rid)
+        httpRequests.delete(args.rid)
+        const stream = channelStream(args.streamChannel)
+        const body = entry && entry.response && entry.response.body
+        if (body) {
+          const reader = body.getReader()
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) {
+              break
+            }
+            // Each chunk carries a trailing flag byte: 0 = data, 1 = end of body.
+            stream.send(concatBytes(value, Uint8Array.of(0)))
+          }
+        }
+        stream.send(Uint8Array.of(1))
+        stream.end()
+        return null
+      }
+      default:
+        return null
+    }
+  }
+
+  // Uploads a staged file with a PUT to a presigned URL, reporting progress on the channel.
+  function uploadPut(args) {
+    const entry = vfsGet(args.path)
+    const progress = channelStream(args.onProgress)
+    const total = entry.bytes.byteLength
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('PUT', args.url)
+      for (const [k, v] of Object.entries(args.headers || {})) {
+        xhr.setRequestHeader(k, v)
+      }
+      xhr.upload.onprogress = (e) => progress.send({ progressTotal: e.loaded, total: e.lengthComputable ? e.total : total })
+      xhr.onload = () => {
+        progress.send({ progressTotal: total, total })
+        progress.end()
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(null)
+        } else {
+          reject('Upload failed with status ' + xhr.status + ': ' + xhr.responseText)
+        }
+      }
+      xhr.onerror = () => {
+        progress.end()
+        reject('Upload request failed')
+      }
+      xhr.send(new Blob([entry.bytes], { type: (args.headers && args.headers['Content-Type']) || entry.type }))
+    })
+  }
+
   // ---------- plugin commands ----------
-  function pluginCommand(plugin, command, args) {
+  function pluginCommand(plugin, command, args, options) {
     switch (plugin) {
       case 'event':
         if (command === 'listen') {
@@ -528,16 +885,29 @@
       case 'path':
         return pathCommand(command, args)
       case 'fs':
-        if (command === 'exists') {
-          return false
-        }
-        if (command === 'read_dir') {
-          return []
-        }
-        if (command === 'read_text_file' || command === 'read_file' || command === 'stat' || command === 'lstat') {
-          throw 'file not available in browser'
+        return fsCommand(command, args, options)
+      case 'resources':
+        if (command === 'close') {
+          fileHandles.delete(args.rid)
         }
         return null
+      case 'dialog':
+        if (command === 'open') {
+          return dialogOpen(args.options)
+        }
+        if (command === 'save') {
+          return null
+        }
+        if (command === 'ask' || command === 'confirm') {
+          return window.confirm(args.message || '')
+        }
+        if (command === 'message') {
+          window.alert(args.message || '')
+          return 'Ok'
+        }
+        return null
+      case 'http':
+        return httpCommand(command, args)
       case 'log':
         console.log('[app]', args && args.message)
         return null
@@ -578,6 +948,57 @@
     }
   }
 
+  function fsCommand(command, args, options) {
+    switch (command) {
+      case 'exists':
+        return vfs.has(vfsKey(args.path)) || vfsIsDir(args.path)
+      case 'mkdir':
+      case 'watch':
+      case 'unwatch':
+        return null
+      case 'read_dir':
+        return []
+      case 'create':
+        return fsOpen(args.path, { write: true, create: true, truncate: true })
+      case 'open':
+        return fsOpen(args.path, args.options)
+      case 'write':
+        return fsWrite(args.rid, args.data)
+      case 'write_file':
+      case 'write_text_file': {
+        // Raw-body invoke: the bytes are the args, the path travels in the headers.
+        const headers = (options && options.headers) || {}
+        vfsPut(decodeURIComponent(headers.path || ''), toBytes(args))
+        return null
+      }
+      case 'read_file':
+        return vfsGet(args.path).bytes.slice().buffer
+      case 'read_text_file':
+        return new TextDecoder().decode(vfsGet(args.path).bytes)
+      case 'stat':
+      case 'lstat':
+        return fsStat(args.path)
+      case 'size':
+        return vfsGet(args.path).bytes.byteLength
+      case 'remove':
+        vfs.delete(vfsKey(args.path))
+        return null
+      case 'copy_file': {
+        const entry = vfsGet(args.fromPath)
+        vfsPut(args.toPath, entry.bytes, entry.type)
+        return null
+      }
+      case 'rename': {
+        const entry = vfsGet(args.oldPath)
+        vfs.delete(vfsKey(args.oldPath))
+        vfsPut(args.newPath, entry.bytes, entry.type)
+        return null
+      }
+      default:
+        return null
+    }
+  }
+
   const osInfo = {
     platform: 'linux',
     version: '6.1.0',
@@ -595,7 +1016,7 @@
     const join = (parts) => parts.filter((p) => p != null && p !== '').join('/').replace(/\/+/g, '/')
     switch (command) {
       case 'resolve_directory':
-        return join(['/tmp/app', args && args.path])
+        return join([APP_ROOT, args && args.path])
       case 'join':
         return join(args.paths || [])
       case 'resolve':
@@ -764,13 +1185,29 @@
 
     get_navigation_items: () => [],
     query_files: () => ({ files: [], total: 0, page: 1, pageSize: 20, hasMore: false }),
-    get_files_meta: () => [],
     get_window_payload: () => null,
     push_window_payload: () => null,
     get_windows_scale_info: () => ({ scale: window.devicePixelRatio || 1 }),
     parse_markdown: (args) => (args && (args.content || args.markdown)) || '',
     get_readme_html: () => '',
-    default_window_icon: () => null
+    default_window_icon: () => null,
+
+    async get_files_meta(args) {
+      return ((args && args.filesPath) || []).map((path) => {
+        const isUrl = /^https?:\/\//.test(path)
+        return {
+          name: String(path).split(/[\\/]/).pop(),
+          path,
+          file_type: extOf(path),
+          mime_type: isUrl ? mimeOf(path) : (vfs.get(vfsKey(path)) || {}).type || mimeOf(path),
+          exists: !isUrl && vfs.has(vfsKey(path))
+        }
+      })
+    },
+    upload_file_put: (args) => uploadPut(args),
+    qiniu_upload_resumable() {
+      throw 'qiniu resumable upload is not available in the browser shim; use the MinIO storage engine'
+    }
   }
 
   async function invoke(cmd, args, options) {
@@ -778,7 +1215,7 @@
     try {
       if (cmd.startsWith('plugin:')) {
         const sep = cmd.indexOf('|')
-        return await pluginCommand(cmd.slice(7, sep), cmd.slice(sep + 1), args)
+        return await pluginCommand(cmd.slice(7, sep), cmd.slice(sep + 1), args, options)
       }
       const handler = handlers[cmd]
       if (!handler) {
@@ -798,7 +1235,7 @@
     unregisterCallback,
     runCallback,
     callbacks,
-    convertFileSrc: (path) => path,
+    convertFileSrc,
     metadata: {
       currentWindow: { label: LABEL },
       currentWebview: { label: LABEL, windowLabel: LABEL }
