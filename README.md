@@ -43,7 +43,7 @@ docker exec -i tio-chat-mysql mysql -uroot -p'robot_123456#' tio_chat < im.sql
 - `server.port`：服务端口，默认 18760
 - `jdbc.url` / `jdbc.user` / `jdbc.pswd`：MySQL 连接
 - `redis.host` / `redis.port` / `redis.password`：Redis 连接
-- `server.beartbeat.timeout`：WebSocket 心跳超时（毫秒），默认 30000
+- `server.heartbeat.timeout`：WebSocket 心跳超时（毫秒），默认 30000
 - `chat.token.timeout`：登录 token 有效期（秒），默认 30 天
 - `chat.default.password`：后台重置密码时使用的默认密码
 - `chat.group.account.prefix`：新建群号前缀
