@@ -16,6 +16,7 @@
 - `scripts/client-upload-e2e.sh`：发送图片和文件（需要 MinIO，见 README“文件存储”一节）。
 - `scripts/client-friend-e2e.sh`：按账号搜索加好友、按群号申请加群。
 - `scripts/client-feed-e2e.sh`：朋友圈发布、图片动态、点赞评论与实时通知（需要 MinIO）。
+- `scripts/client-call-e2e.sh`：语音、视频通话的接通、挂断、拒绝、取消与通话记录。
 - `scripts/client-ai-e2e.sh`：AI 助手对话（需要先用 `scripts/setup-deepseek.sh` 登记模型，见 README“AI 模型”一节）。
 
 ## 运行
@@ -37,6 +38,7 @@ sg docker -c "scripts/client-upload-e2e.sh client-e2e-out"
 sg docker -c "scripts/client-ai-e2e.sh client-e2e-out"
 sg docker -c "scripts/client-friend-e2e.sh client-e2e-out"
 sg docker -c "scripts/client-feed-e2e.sh client-e2e-out"
+sg docker -c "scripts/client-call-e2e.sh client-e2e-out"
 ```
 
 两个用户分别使用 `127.0.0.1` 和 `localhost` 两个源打开页面，各自的 localStorage 互不影响；每次登录前会清空该源的本地状态，保证首次使用引导、登录表单的流程一致。
@@ -127,6 +129,24 @@ sg docker -c "scripts/client-feed-e2e.sh client-e2e-out"
 - 同一秒内发布的两条动态顺序不确定，现在按发布时间和编号倒序。
 
 客户端自身的限制：桌面端朋友圈窗口的“评论通知”弹窗没有数据来源，始终显示“暂无评论通知”；点赞人自己也会收到 `feedNotify`（与原服务端一致，用于多端同步），所以操作者的角标同样会增加。
+
+## 语音与视频通话
+
+通话窗口 `/rtcCall` 以新标签页打开：主叫方点击聊天头部的电话或摄像机图标，被叫方的主窗口收到 `VideoCallRequest` 推送后打开来电窗口。通话窗口没有自己的 WebSocket，WebRTC 的 offer、answer、ICE 候选通过垫片转给主窗口所在标签页发送（类型 14），服务端在两人之间转发；应答（类型 6）、挂断、拒绝、取消同样如此，通话结束时服务端生成通话记录消息（语音 12、视频 13）。
+
+无头 Chrome 没有摄像头和麦克风。垫片提供模拟设备：`localStorage.__shim_fake_media` 为 `1` 时，`getUserMedia` 返回由振荡器生成的音轨和动画 canvas 生成的视频轨，`enumerateDevices` 返回模拟的麦克风、摄像头和扬声器。两个浏览器任务在同一台机器上，WebRTC 直接用主机候选地址连通。垫片还实现了 `push_window_payload` / `get_window_payload`（保存在 localStorage，供另一个标签页的窗口读取）。
+
+`scripts/client-call-e2e.sh` 用 `make-friends.sh` 生成一对好友，登录后打开模拟设备，然后：
+
+1. 语音通话：bob 打开着与 alice 的会话。alice 点击电话图标，通话窗口显示“正在呼叫”；bob 弹出来电窗口“来电 · 语音通话”，点击接听；双方连接成功，显示“通话中”并开始计时，bob 的 `<audio>` 播放对方的音轨。alice 挂断，双方的通话窗口自动关闭，聊天中出现“通话时长 0:05”。
+2. 视频通话：bob 正在看“官方频道”。来电窗口仍然弹出，接听后双方都显示两路视频（本地和对方的模拟摄像头画面，`videoWidth > 0`），bob 挂断，双方出现视频通话记录。
+3. 拒绝：alice 发起语音通话，bob 在来电窗口点击拒绝，双方窗口关闭，记录为“已拒绝”（与原服务端的文案规则一致）。
+4. 取消：alice 发起视频通话，bob 接听前 alice 挂断，bob 的来电窗口关闭，alice 看到“已取消”，bob 看到“对方已取消”。
+5. 用接口核对聊天中保存了 4 条通话记录：`(13, 通话时长)`、`(12, 通话时长)`、`(13, 已拒绝)`、`(12, 已取消)`。
+
+截图：`41-voice-incoming.png`、`42-voice-connected-alice.png`、`43-voice-connected-bob.png`、`44-voice-record.png`、`45-video-connected-alice.png`、`46-video-connected-bob.png`、`47-rejected-alice.png`、`48-cancelled-bob.png`。
+
+测试中修复的服务端问题：桌面客户端的来电窗口把被叫方“当前打开的会话”当作通话房间，被叫方正在看其他会话时，应答和信令带的是那个会话的房间号，服务端会把信令推给无关的成员，通话无法接通。现在应答时如果房间不是该主叫方发起的通话，改用主叫方发起、被叫方所在的通话房间；信令的发送方不在所带房间的通话中时，改用发送方已加入的通话房间。被叫方没有打开任何会话时，房间号为空，客户端在处理 offer 时自己报“房间号不存在”，这是客户端的问题，服务端无法补救。
 
 ## AI 助手（DeepSeek）
 
