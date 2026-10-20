@@ -22,10 +22,11 @@ public class AiMessageSendStreamHandler {
     Long conversationId = Values.toLong(body.get("conversationId"));
     String content = body.getStr("content");
     boolean useContext = body.get("useContext") == null || Values.isTrue(body.get("useContext"));
+    boolean reasoning = Values.isTrue(body.get("reasoningEnabled"));
     ChannelContext ctx = SseUtils.open(request);
     TioThreadUtils.execute(() -> {
       try {
-        Aop.get(AiChatService.class).sendStream(ctx, uid, conversationId, content, useContext);
+        Aop.get(AiChatService.class).sendStream(ctx, uid, conversationId, content, useContext, reasoning);
       } catch (Exception e) {
         AiChatService.error(ctx, e.getMessage());
       }

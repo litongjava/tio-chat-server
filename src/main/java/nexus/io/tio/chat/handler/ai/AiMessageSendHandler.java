@@ -17,6 +17,6 @@ public class AiMessageSendHandler {
     Kv body = ParameterValidationUtils.bodyKv(request);
     ParameterValidationUtils.notBlank(body.getStr("content"), "内容不能为空");
     return ChatResp.ok(Aop.get(AiChatService.class).send(LoginContext.uid(), Values.toLong(body.get("conversationId")), body.getStr("content"),
-        body.get("useContext") == null || Values.isTrue(body.get("useContext"))));
+        body.get("useContext") == null || Values.isTrue(body.get("useContext")), Values.isTrue(body.get("reasoningEnabled"))));
   }
 }

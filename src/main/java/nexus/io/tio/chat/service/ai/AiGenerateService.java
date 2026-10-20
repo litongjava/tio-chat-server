@@ -76,15 +76,34 @@ public class AiGenerateService {
     AiLlmService llm = Aop.get(AiLlmService.class);
     List<Map<String, Object>> messages = List.of(Map.of("role", "system", "content", system), Map.of("role", "user", "content", prompt));
     StringBuilder content = new StringBuilder();
-    llm.stream(target, messages, (delta, reasoning) -> {
-      content.append(delta);
-      SseUtils.send(ctx, JsonUtils.toJson(ChatResp.toR(RespBodyVo.ok(delta), null)));
-    }, () -> {
-      Db.update("update " + table + " set generated_content=? where id=?", content.toString(), recordId);
-      SseUtils.close(ctx);
-    }, message -> {
-      Db.update("update " + table + " set error_message=? where id=?", message, recordId);
-      AiChatService.error(ctx, message);
+    // 写作与思维导图只需要正文，关闭深度思考
+    llm.stream(target, messages, false, new AiLlmService.StreamHandler() {
+      @Override
+      public boolean onDelta(String delta, String reasoning) {
+        content.append(delta);
+        return SseUtils.send(ctx, JsonUtils.toJson(ChatResp.toR(RespBodyVo.ok(delta), null)));
+      }
+
+      @Override
+      public void onUsage(int totalTokens) {
+      }
+
+      @Override
+      public void onComplete() {
+        Db.update("update " + table + " set generated_content=? where id=?", content.toString(), recordId);
+        SseUtils.close(ctx);
+      }
+
+      @Override
+      public void onCancel() {
+        Db.update("update " + table + " set generated_content=? where id=?", content.toString(), recordId);
+      }
+
+      @Override
+      public void onError(String message) {
+        Db.update("update " + table + " set error_message=? where id=?", message, recordId);
+        AiChatService.error(ctx, message);
+      }
     });
   }
 
