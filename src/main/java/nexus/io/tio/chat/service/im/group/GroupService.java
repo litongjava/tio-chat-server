@@ -43,6 +43,9 @@ import nexus.io.tio.utils.snowflake.SnowflakeIdUtils;
  */
 public class GroupService {
   private static final int MAX_MANAGE_COUNT = 3;
+  /** im_room_group.name 列长度 */
+  private static final int MAX_GROUP_NAME_LENGTH = 16;
+  private static final String DEFAULT_GROUP_NAME_SUFFIX = "的群组";
   private static final String BASE62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
   private RoomQueryService rooms() {
@@ -288,11 +291,12 @@ public class GroupService {
     Long selfGroups = Db.queryLong("select count(*) from im_group_member where uid=? and role_id=? and is_del=0", uid,
         ImConst.GROUP_ROLE_LEADER);
     ChatErrors.require(selfGroups < 20, "每个人只能创建20个群");
+    requireGroupNameLength(groupName);
     UserSummary self = Aop.get(UserSummaryService.class).get(uid);
     long roomId = Db.txResult(() -> {
       long newRoomId = Aop.get(RoomService.class).createRoom(ImConst.ROOM_TYPE_GROUP, 1L);
       long groupId = SnowflakeIdUtils.id();
-      String name = groupName == null || groupName.isBlank() ? self.getName() + "的群组" : groupName;
+      String name = groupName == null || groupName.isBlank() ? defaultGroupName(self.getName()) : groupName;
       Row group = Row.by("id", groupId).set("room_id", newRoomId).set("account", groupAccount(SnowflakeIdUtils.id()))
           .set("name", name).set("avatar", self.getAvatar()).set("allow_scan_enter", 1).set("tenant_id", 1L)
           .set("create_by", uid);
@@ -502,11 +506,28 @@ public class GroupService {
     if (group == null || !hasPower(role(uid, group.getLong("id")))) {
       return false;
     }
+    requireGroupNameLength(name);
     Db.update("update im_room_group set name=?, avatar=?, allow_scan_enter=? where id=?", name, avatar,
         Values.isTrue(allowScanEnter), group.getLong("id"));
     Kv data = Kv.by("roomId", String.valueOf(roomId)).set("name", name).set("avatar", avatar);
     Aop.get(PushService.class).push(WsBaseResp.of(WsRespType.ROOM_INFO_CHANGE, data), rooms().groupMemberUids(roomId, true));
     return true;
+  }
+
+  /**
+   * 默认群名为“创建者昵称的群组”，昵称过长时截断，保证不超过群名列长度
+   */
+  private String defaultGroupName(String ownerName) {
+    String owner = ownerName == null ? "" : ownerName;
+    int maxOwnerLength = MAX_GROUP_NAME_LENGTH - DEFAULT_GROUP_NAME_SUFFIX.length();
+    if (owner.length() > maxOwnerLength) {
+      owner = owner.substring(0, maxOwnerLength);
+    }
+    return owner + DEFAULT_GROUP_NAME_SUFFIX;
+  }
+
+  private void requireGroupNameLength(String name) {
+    ChatErrors.require(name == null || name.length() <= MAX_GROUP_NAME_LENGTH, "群名称不能超过" + MAX_GROUP_NAME_LENGTH + "个字符");
   }
 
   public boolean updateMyRoomInfo(long uid, Long roomId, String myName, String remark) {
