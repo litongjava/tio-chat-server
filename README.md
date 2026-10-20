@@ -53,6 +53,48 @@ docker exec -i tio-chat-mysql mysql -uroot -p'robot_123456#' tio_chat < im.sql
 
 七牛、MinIO、地图、翻译等第三方密钥保存在 `base_config` 表中，可通过 `/api/system/anyTenant/config/update` 维护。
 
+### 文件存储（MinIO）
+
+图片、文件、语音、视频由客户端直传对象存储：客户端调用 `/api/system/anyTenant/storage/provider` 得到存储引擎，再调用 `/api/system/anyTenant/ossToken?scene=chat&fileName=...` 取得预签名 PUT 地址 `uploadUrl` 和下载地址 `downloadUrl`，把文件 PUT 到 `uploadUrl` 后，消息里只保存 `downloadUrl`。服务端不经手文件内容。
+
+本地用 MinIO 时，先启动一个容器并建一个允许匿名下载的桶（官方镜像已不在 Docker Hub 发布，这里使用社区维护的同名构建，命令行参数与官方一致）：
+
+```shell
+docker run -d --name tio-chat-minio -p 9000:9000 -p 9001:9001 \
+  -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin123 \
+  -v tio-chat-minio-data:/data pgsty/minio:latest server /data --console-address :9001
+docker exec tio-chat-minio sh -c 'mc alias set local http://127.0.0.1:9000 minioadmin minioadmin123 \
+  && mc mb -p local/chat && mc anonymous set download local/chat'
+```
+
+然后把 `base_config` 中的存储配置指向它：
+
+```sql
+update base_config set config_value='http://127.0.0.1:9000' where config_key='minioEndpoint';
+update base_config set config_value='minioadmin' where config_key='minioAccessKey';
+update base_config set config_value='minioadmin123' where config_key='minioSecretKey';
+update base_config set config_value='chat' where config_key='minioBucket';
+update base_config set config_value='http://127.0.0.1:9000/chat' where config_key='minioUrlPrefix';
+update base_config set config_value='minio' where config_key='storageDefault';
+```
+
+用 curl 验证预签名地址：
+
+```shell
+R=$(curl -s "localhost:18760/api/system/anyTenant/ossToken?scene=chat&fileName=hello.txt")
+U=$(echo "$R" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['uploadUrl'])")
+D=$(echo "$R" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['downloadUrl'])")
+echo hello > hello.txt
+curl -X PUT -H "Content-Type: text/plain" --data-binary @hello.txt "$U"
+curl "$D"
+```
+
+注意：
+
+- 预签名签的是 `host`，`minioEndpoint` 必须是客户端实际访问的地址（容器内外、域名与 IP 不能混用）。
+- 桌面客户端只允许向 `https` 地址上传，生产环境需要给 MinIO 配置 HTTPS（或放在 HTTPS 反向代理之后），`minioUrlPrefix` 填对外的下载地址；浏览器联调可以直接用 `http`。
+- MinIO 默认允许任意来源的跨域请求，浏览器直传无需额外配置；如果放在反向代理后面，代理需要放行 `PUT` 与 `OPTIONS`。
+
 ## 构建与启动
 
 ```shell
