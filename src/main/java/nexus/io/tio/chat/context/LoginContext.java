@@ -1,6 +1,6 @@
 package nexus.io.tio.chat.context;
 
-import nexus.io.model.exception.BusinessException;
+import nexus.io.tio.chat.utils.ChatErrors;
 import nexus.io.tio.chat.consts.ChatCode;
 
 import nexus.io.tio.boot.http.TioRequestContext;
@@ -28,7 +28,7 @@ public class LoginContext {
   public static LoginSession required() {
     LoginSession session = get();
     if (session == null) {
-      throw new BusinessException(ChatCode.UNAUTHORIZED, "请先登录");
+      throw ChatErrors.of(ChatCode.UNAUTHORIZED, "请先登录");
     }
     return session;
   }
