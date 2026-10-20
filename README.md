@@ -95,6 +95,31 @@ curl "$D"
 - 桌面客户端只允许向 `https` 地址上传，生产环境需要给 MinIO 配置 HTTPS（或放在 HTTPS 反向代理之后），`minioUrlPrefix` 填对外的下载地址；浏览器联调可以直接用 `http`。
 - MinIO 默认允许任意来源的跨域请求，浏览器直传无需额外配置；如果放在反向代理后面，代理需要放行 `PUT` 与 `OPTIONS`。
 
+### AI 模型（DeepSeek 等 OpenAI 兼容平台）
+
+客户端的 AI 助手通过 `/api/ai` 调用 OpenAI 兼容的对话接口，模型和密钥保存在数据库中，不写在配置文件里：
+
+- `ai_api_key`：平台名（如 `DeepSeek`）、密钥、可选的自定义地址 `url`（为空时使用平台默认地址，DeepSeek 为 `https://api.deepseek.com/v1`）。`publicStatus=true` 的密钥对所有用户可选，未指定时为创建者私有。
+- `ai_model`：关联密钥 `keyId`，`model` 填平台的模型标识（以平台 `/models` 接口返回的为准），`type=1` 为对话模型，`publicStatus=0` 为公开模型、`1` 为创建者私有，`supportsReasoning=1` 时客户端显示“深度思考”开关。
+- `ai_chat_role`：客户端新建对话前必须有一个可用角色（`publicStatus=true` 为公开），角色的 `modelId` 是新对话的默认模型。
+
+`scripts/setup-deepseek.sh` 用一个账号通过上述接口登记 DeepSeek：一个公开密钥、平台返回的每个模型各一个公开对话模型，以及一个公开角色。密钥只从环境变量读取：
+
+```shell
+export DEEPSEEK_API_KEY=<你的密钥>          # 不要写进仓库
+sg docker -c "scripts/setup-deepseek.sh"   # 可选 DEEPSEEK_BASE_URL、OWNER（默认 ai-admin@example.com）
+```
+
+脚本每次运行都会新建记录，重新登记前先在客户端的“模型管理”“API 密钥”中删除旧记录。其他 OpenAI 兼容平台同理：在客户端的“API 密钥”里添加平台密钥，再在“模型管理”里添加模型。
+
+说明：
+
+- 流式回答（`/api/ai/chat/message/send-stream`）是 SSE，每个事件的 `data` 是一条 `{code, data: {send, receive}}` 响应，事件以 `\n\n` 结尾。
+- 客户端打开“深度思考”时（`reasoningEnabled=true`），DeepSeek 请求带 `thinking: {type: enabled}`，思考内容放在 `receive.reasoningContent` 中流式返回并保存；关闭时带 `thinking: {type: disabled}`，不返回思考内容。
+- 点击“停止思考”时客户端断开连接，服务端随即取消上游请求，已显示的内容保存为回答。
+- 会话的 `tokenUsage` 按平台返回的用量累计（没有用量时按字数估算）；客户端在累计值达到模型的 `maxTokens` 后不再发送。
+- API 密钥只返回给创建者，其他接口（包括后台列表）返回掩码。
+
 ## 构建与启动
 
 ```shell
@@ -135,6 +160,7 @@ scripts/smoke-feed.sh       # 朋友圈、标签、表情包、隐私
 scripts/smoke-base-crud.sh  # 后台通用增删改查
 scripts/smoke-base-ext.sh   # 后台扩展接口
 scripts/smoke-ai.sh         # AI 对话（配合 MockLlm.java 模拟模型）
+scripts/setup-deepseek.sh   # 登记 DeepSeek 模型（见“AI 模型”一节）
 ```
 
 浏览器测试控制台：启动后访问 `http://localhost:18760/console/index.html`，可以登录、查看会话、收发消息并观察 WebSocket 推送。浏览器测试过程见 [docs/browser-test.md](docs/browser-test.md)。

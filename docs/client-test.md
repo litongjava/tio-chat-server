@@ -14,6 +14,7 @@
 - `scripts/client-e2e.sh`：单聊，两个浏览器任务完成登录、收发消息、查看好友列表并截图。
 - `scripts/client-group-e2e.sh`：群聊与消息撤回。
 - `scripts/client-upload-e2e.sh`：发送图片和文件（需要 MinIO，见 README“文件存储”一节）。
+- `scripts/client-ai-e2e.sh`：AI 助手对话（需要先用 `scripts/setup-deepseek.sh` 登记模型，见 README“AI 模型”一节）。
 
 ## 运行
 
@@ -31,6 +32,7 @@ CLIENT_DIR=<客户端源码目录> tools/web-shim/start-client.sh
 sg docker -c "scripts/client-e2e.sh client-e2e-out"
 sg docker -c "scripts/client-group-e2e.sh client-e2e-out"
 sg docker -c "scripts/client-upload-e2e.sh client-e2e-out"
+sg docker -c "scripts/client-ai-e2e.sh client-e2e-out"
 ```
 
 两个用户分别使用 `127.0.0.1` 和 `localhost` 两个源打开页面，各自的 localStorage 互不影响；每次登录前会清空该源的本地状态，保证首次使用引导、登录表单的流程一致。
@@ -81,6 +83,38 @@ sg docker -c "scripts/client-upload-e2e.sh client-e2e-out"
 截图：`01-alice-sent-image-file.png`、`02-bob-received-image-file.png`。
 
 测试中修复了一个服务端问题：MinIO 下载地址中的对象名没有做 URL 编码，文件名含空格、`#`、`%` 等字符时下载地址无效；现在下载地址与上传地址使用同样的路径编码，文件名中的 `/`、`\` 也会替换为 `_`，避免对象落到其他目录。
+
+## AI 助手（DeepSeek）
+
+桌面客户端的 AI 助手是 `/robot` 窗口。发送消息时页面调用 Rust 命令 `ai_message_send_stream`，参数是请求体 `body`（`conversationId`、`content`、`useContext`、`reasoningEnabled`）、`requestId` 和一个 Channel；Rust 层 POST `ai/chat/message/send-stream`，收到响应头后命令立即返回，随后在后台按 `\n\n` 切分 SSE 事件，每个 `data:` 行作为一条 `{eventType: "chunk", data, requestId}` 发到 Channel，流结束时发送 `done`（`data` 为全部数据拼接），出错时发送 `error`。停止生成调用 `ai_message_cancel_stream`，中止后台任务后不再发送任何事件。垫片按同样的顺序和字段实现这两个命令：用 `fetch` 读取响应流，`TextDecoder` 按流式方式解码（多字节汉字被拆在两个数据块中也能正确拼接），取消时中止 `fetch`。
+
+测试前用 `scripts/setup-deepseek.sh` 登记 DeepSeek（公开密钥、`deepseek-flash` 与 `deepseek-v4-pro` 两个公开模型、一个公开角色“DeepSeek 助手”），然后执行 `scripts/client-ai-e2e.sh`。脚本注册新用户并完成以下步骤：
+
+1. 登录后打开 `/robot`，点击“新的聊天”，以“DeepSeek 助手”角色创建对话，当前模型为 `deepseek-flash`（官网模型）；打开模型选择框，列出两个公开模型，选择 `deepseek-flash`。
+2. 提问“中国的首都是哪座城市？……”，回答逐段显示，结束后包含“北京”，Token 用量更新。
+3. 刷新页面，对话和消息从服务端重新加载。
+4. 打开“深度思考”开关后提问“9.11 和 9.9 哪个大？”，回答上方显示“思考过程”，内容为模型返回的 `reasoning_content`。
+5. 关闭开关，要求写一篇两千字的文章，回答流式显示到一半时点击“停止思考”，提示“已停止生成”，已显示的内容保留。
+6. 用接口核对：对话中共 6 条消息，每条都有内容，第 2 个回答带思考内容；再次刷新后停止生成的回答仍在。
+
+截图：`01-ai-models.png`、`02-ai-answer.png`、`03-ai-history.png`、`04-ai-reasoning.png`、`05-ai-streaming.png`、`06-ai-stopped.png`、`07-ai-history-after-stop.png`。
+
+用 curl 也可以直接验证（中文 UTF-8 正常，事件以 `\n\n` 结尾）：
+
+```shell
+curl -N -XPOST localhost:18760/api/ai/chat/message/send-stream -H 'Content-Type: application/json' -H "token: $T" \
+  -d '{"conversationId":"<对话编号>","content":"写一首关于西湖的四行短诗","reasoningEnabled":false}'
+```
+
+测试中发现并修复的服务端问题：
+
+- SSE 事件以 `\r\n\r\n` 结尾，客户端只按 `\n\n` 切分事件，一个分片都收不到，界面一直停在“正在思考中…”；现在事件以 LF 分行。
+- 上游请求默认带 `Accept-Encoding: gzip`，DeepSeek 的 CDN 会把压缩后的事件流攒批下发，首字延迟 3～5 秒、内容成段跳出；流式请求现在要求不压缩，首字约 1 秒。
+- `reasoningEnabled` 被忽略：DeepSeek 新模型默认开启思考，关闭开关时也要等思考结束才出正文。现在按开关传 `thinking` 参数，关闭时不返回思考内容。
+- 停止生成后服务端仍在等上游输出，回答保存为空；`save-generated-content` 读取的参数名与客户端不一致（客户端在查询串里传 `prompt`、`generatedContent`），保存失败。现在客户端断开时取消上游请求并保存已发送的部分，`save-generated-content` 遇到对同一提问的最新回答时更新它，否则插入提问和回答两条消息。
+- 对话列表 `chat/conversation/page` 返回所有用户的对话；模型列表 `model/page` 只返回自己的模型，看不到公开模型；`model/simple-list`、角色列表不区分公开与私有；`api-key/simple-list`、`api-key/get` 和后台密钥列表返回密钥明文。现在按“公开或自己的”过滤，密钥只对创建者显示明文。
+- 模型的 `publicStatus` 以布尔返回，客户端按数字 `0` 判断“官网模型”，公开模型被显示为“自建模型”；对话的 `tokenUsage` 以字符串返回，客户端不更新 Token 用量。
+- 回答内容超过 `ai_chat_message.content` 的 10240 字符时保存失败，现在截断保存。
 
 ## 说明
 
