@@ -7,8 +7,11 @@ import nexus.io.tio.chat.consts.WsRespType;
 import nexus.io.tio.chat.model.ws.OffLineResp;
 import nexus.io.tio.chat.model.ws.WsBaseResp;
 import nexus.io.tio.chat.service.oauth.LoginEventService;
+import nexus.io.tio.chat.ws.AckProcessor;
 import nexus.io.tio.chat.ws.ChatWebSocketHandler;
 import nexus.io.tio.chat.ws.PushService;
+import nexus.io.tio.chat.ws.ReadProcessor;
+import nexus.io.tio.chat.ws.WsMessageDispatcher;
 import nexus.io.tio.core.Tio;
 import nexus.io.tio.server.ServerTioConfig;
 
@@ -21,6 +24,9 @@ public class WebSocketConfig {
     }
     router.add("/api/ws/ws", new ChatWebSocketHandler());
     router.add("/ws", new ChatWebSocketHandler());
+
+    WsMessageDispatcher.register(15, new AckProcessor());
+    WsMessageDispatcher.register(16, new ReadProcessor());
 
     PushService pushService = Aop.get(PushService.class);
     pushService.subscribe();

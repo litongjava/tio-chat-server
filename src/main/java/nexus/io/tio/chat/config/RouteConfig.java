@@ -1,6 +1,7 @@
 package nexus.io.tio.chat.config;
 
 import nexus.io.tio.boot.server.TioBootServer;
+import nexus.io.tio.chat.config.route.ImChatRouteConfig;
 import nexus.io.tio.chat.config.route.ImUserRouteConfig;
 import nexus.io.tio.chat.config.route.OauthRouteConfig;
 import nexus.io.tio.chat.handler.HealthHandler;
@@ -16,5 +17,6 @@ public class RouteConfig {
     r.get("/health", new HealthHandler()::handle);
     new OauthRouteConfig().config(r);
     new ImUserRouteConfig().config(r);
+    new ImChatRouteConfig().config(r);
   }
 }

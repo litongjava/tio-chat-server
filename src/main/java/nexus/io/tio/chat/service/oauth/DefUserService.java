@@ -63,7 +63,7 @@ public class DefUserService {
       nickName = mobile != null ? mobile : "用户_" + account.substring(account.length() - 6);
     }
     Row user = Row.by("id", id).set("system_type", systemType).set("username", account).set("nick_name", nickName)
-        .set("email", email == null ? "" : email).set("mobile", mobile == null ? "" : mobile).set("avatar", avatar).set("sex", sex == null ? 0 : sex).set("state", 1)
+        .set("email", email).set("mobile", mobile).set("avatar", avatar).set("sex", sex == null ? 0 : sex).set("state", 1)
         .set("readonly", 0).set("password", AccountUtils.hashPassword(password, salt)).set("salt", salt)
         .set("password_error_num", 0).set("tenant_id", tenantId).set("create_by", id)
         .set("create_time", LocalDateTime.now());

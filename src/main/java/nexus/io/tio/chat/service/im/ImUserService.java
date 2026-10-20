@@ -6,6 +6,9 @@ import nexus.io.db.activerecord.Db;
 import nexus.io.db.activerecord.Row;
 import nexus.io.jfinal.aop.Aop;
 import nexus.io.tio.chat.consts.ImConst;
+import nexus.io.tio.chat.consts.MsgType;
+import nexus.io.tio.chat.model.im.chat.ChatMessageReq;
+import nexus.io.tio.chat.service.im.chat.MessageService;
 import nexus.io.tio.chat.utils.AccountUtils;
 import nexus.io.tio.utils.snowflake.SnowflakeIdUtils;
 
@@ -46,6 +49,17 @@ public class ImUserService {
     long friendRoomId = roomService.createFriendRoom(uid, ImConst.DEF_BOT_ID, tenantId);
     Aop.get(FriendService.class).createFriend(friendRoomId, uid, ImConst.DEF_BOT_ID, tenantId);
     Aop.get(ItemService.class).registerReward(uid);
+
+    MessageService messageService = Aop.get(MessageService.class);
+    ChatMessageReq agree = ChatMessageReq.of(friendRoomId, MsgType.TEXT, Kv.by("content", "我们已经成为好友了，开始聊天吧"));
+    agree.setPushMessage(true);
+    agree.setSkip(true);
+    messageService.send(agree, uid);
+    long total = Db.queryLong("select count(*) from im_user where is_del=0");
+    String welcome = String.format("欢迎[%s]第%d位加入", name, total);
+    ChatMessageReq groupWelcome = ChatMessageReq.of(ImConst.DEF_ROOM_ID, MsgType.BOT, Kv.by("content", welcome));
+    groupWelcome.setSkip(true);
+    messageService.send(groupWelcome, ImConst.DEF_BOT_ID);
     return uid;
   }
 
