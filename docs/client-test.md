@@ -9,7 +9,10 @@
 - `tools/web-shim/vite.web.config.ts`：复用客户端自己的 Vite 配置，把 `/api`（含 WebSocket）代理到本服务，并在页面最前面注入垫片。
 - `tools/web-shim/start-client.sh`：把垫片和配置放进客户端目录并启动 Vite。
 - `scripts/make-friends.sh`：注册两个用户并互加好友。
-- `scripts/client-e2e.sh`：用两个浏览器任务完成登录、收发消息、查看好友列表并截图。
+- `scripts/make-group-users.sh`：注册 alice、bob、carol，alice 与另外两人互为好友。
+- `scripts/client-lib.sh`：测试脚本共用的 dsb 操作（登录、打开会话、发消息、截图）。
+- `scripts/client-e2e.sh`：单聊，两个浏览器任务完成登录、收发消息、查看好友列表并截图。
+- `scripts/client-group-e2e.sh`：群聊与消息撤回。
 
 ## 运行
 
@@ -25,11 +28,12 @@ CLIENT_DIR=<客户端源码目录> tools/web-shim/start-client.sh
 
 ```shell
 sg docker -c "scripts/client-e2e.sh client-e2e-out"
+sg docker -c "scripts/client-group-e2e.sh client-e2e-out"
 ```
 
 两个用户分别使用 `127.0.0.1` 和 `localhost` 两个源打开页面，各自的 localStorage 互不影响；每次登录前会清空该源的本地状态，保证首次使用引导、登录表单的流程一致。
 
-## 测试流程与结果
+## 单聊
 
 1. alice 登录：完成首次使用引导，输入邮箱和密码登录，进入主窗口，会话列表显示与 bob 的单聊、官方频道和小管家，未读数正确。
 2. alice 打开与 bob 的会话：历史消息通过 `page_msg` 加载，未读清零；发送消息后状态为成功，会话摘要更新。
@@ -38,6 +42,19 @@ sg docker -c "scripts/client-e2e.sh client-e2e-out"
 5. bob 打开通讯录：好友通知、好友列表和在线状态正常显示。
 
 截图保存在输出目录：`01-alice-home.png`、`02-alice-sent.png`、`03-bob-home.png`、`04-alice-received.png`、`05-bob-chat.png`、`06-bob-friends.png`。
+
+## 群聊与消息撤回
+
+1. alice 点击“+”→“发起群聊”，在创建群聊对话框中全选 bob 和 carol，点击“创建”。提示“创建群聊成功”，会话列表出现新群，默认群名为“alice 的昵称 + 的群组”，右侧成员列表显示三人，alice 标记为群主。
+2. alice 在群里发消息；bob 登录后会话列表出现该群，打开即看到 alice 的消息，并显示群主标识。
+3. bob 回复，alice 实时收到，在线成员数为 2。
+4. alice 再发一条消息，bob 收到后，alice 右键该消息，菜单中包含复制、翻译、选择、转发、回复、撤回、删除，点击“撤回”。
+5. alice 一侧显示“你撤回了一条消息 重新编辑”；bob 通过 WebSocket 收到 `msgRecall` 推送，原消息立即替换为“…撤回了一条消息”，会话摘要同步更新。
+6. bob 刷新页面后重新打开群聊，历史消息里仍是撤回提示，内容为服务端生成的“群主 + 昵称 + 撤回了一条消息”，原文不再出现。
+
+截图：`11-group-create.png`、`12-group-created.png`、`13-group-alice.png`、`14-group-bob.png`、`15-recall-menu.png`、`16-recall-alice.png`、`17-recall-bob.png`、`18-recall-bob-reload.png`。
+
+测试中发现并修复了一个服务端问题：默认群名为“创建者昵称的群组”，昵称较长时超过 `im_room_group.name` 的 16 个字符，建群失败。现在默认群名会截断昵称；手动指定或修改群名超过 16 个字符时返回“群名称不能超过16个字符”。
 
 ## 说明
 
