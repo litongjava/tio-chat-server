@@ -6,3 +6,4 @@ target/
 .settings/
 .env
 logs/
+client-e2e-out/

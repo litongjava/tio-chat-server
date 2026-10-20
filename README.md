@@ -97,6 +97,8 @@ scripts/smoke-ai.sh         # AI 对话（配合 MockLlm.java 模拟模型）
 
 浏览器测试控制台：启动后访问 `http://localhost:18760/console/index.html`，可以登录、查看会话、收发消息并观察 WebSocket 推送。浏览器测试过程见 [docs/browser-test.md](docs/browser-test.md)。
 
+原桌面客户端的前端也可以直接在浏览器中对接本服务，并用 dsb 做端到端测试，见 [docs/client-test.md](docs/client-test.md)。
+
 ## 暂未实现
 
 - 代码生成器、工作流（activiti）模块
