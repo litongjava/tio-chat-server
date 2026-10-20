@@ -18,6 +18,7 @@
   const BASIC_AUTH = btoa('luohuo_web_pro:luohuo_web_pro_secret')
   const AUTH_KEY = '__shim_auth'
   const TIME_BLOCK_MS = 10 * 60 * 1000
+  const PAYLOAD_PREFIX = '__shim_payload:'
 
   // The window label survives in-tab navigation through window.name; window.open(url, label)
   // sets it for secondary windows. Fall back to the first path segment.
@@ -32,6 +33,98 @@
     const lang = window.__SHIM_LANG__
     Object.defineProperty(navigator, 'language', { get: () => lang })
     Object.defineProperty(navigator, 'languages', { get: () => [lang] })
+  }
+
+  // ---------- fake camera and microphone ----------
+  // Headless browsers have no media devices. With localStorage.__shim_fake_media = '1' calls get a
+  // generated stream instead: a tone for the microphone and an animated canvas for the camera.
+  const FAKE_MEDIA_KEY = '__shim_fake_media'
+  const fakeMediaEnabled = () => {
+    try {
+      return localStorage.getItem(FAKE_MEDIA_KEY) === '1'
+    } catch (e) {
+      return false
+    }
+  }
+
+  function fakeAudioTrack() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    const dest = ctx.createMediaStreamDestination()
+    osc.frequency.value = 440
+    gain.gain.value = 0.05
+    osc.connect(gain).connect(dest)
+    osc.start()
+    const track = dest.stream.getAudioTracks()[0]
+    track.addEventListener('ended', () => ctx.close())
+    return track
+  }
+
+  function fakeVideoTrack() {
+    const canvas = document.createElement('canvas')
+    canvas.width = 320
+    canvas.height = 240
+    const g = canvas.getContext('2d')
+    let frame = 0
+    const draw = () => {
+      frame++
+      g.fillStyle = 'hsl(' + ((frame * 4) % 360) + ', 60%, 45%)'
+      g.fillRect(0, 0, canvas.width, canvas.height)
+      g.fillStyle = '#fff'
+      g.font = '28px sans-serif'
+      g.fillText('fake camera ' + frame, 30, 130)
+    }
+    draw()
+    // timers keep drawing in background tabs, where requestAnimationFrame stops
+    const timer = setInterval(draw, 100)
+    const track = canvas.captureStream(10).getVideoTracks()[0]
+    track.addEventListener('ended', () => clearInterval(timer))
+    const stop = track.stop.bind(track)
+    track.stop = () => {
+      clearInterval(timer)
+      stop()
+    }
+    return track
+  }
+
+  if (navigator.mediaDevices) {
+    const realGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices)
+    const realEnumerate = navigator.mediaDevices.enumerateDevices.bind(navigator.mediaDevices)
+    const fakeDevice = (kind, deviceId, label) => ({
+      kind,
+      deviceId,
+      groupId: 'fake',
+      label,
+      toJSON() {
+        return { kind, deviceId, groupId: 'fake', label }
+      }
+    })
+    navigator.mediaDevices.getUserMedia = (constraints) => {
+      if (!fakeMediaEnabled()) {
+        return realGetUserMedia(constraints)
+      }
+      const c = constraints || {}
+      const tracks = []
+      if (c.audio) {
+        tracks.push(fakeAudioTrack())
+      }
+      if (c.video) {
+        tracks.push(fakeVideoTrack())
+      }
+      log('fake media stream', tracks.map((t) => t.kind).join(','))
+      return Promise.resolve(new MediaStream(tracks))
+    }
+    navigator.mediaDevices.enumerateDevices = () => {
+      if (!fakeMediaEnabled()) {
+        return realEnumerate()
+      }
+      return Promise.resolve([
+        fakeDevice('audioinput', 'default', 'Fake microphone'),
+        fakeDevice('videoinput', 'fake-camera', 'Fake camera'),
+        fakeDevice('audiooutput', 'default', 'Fake speaker')
+      ])
+    }
   }
 
   // ---------- callbacks (transformCallback / Channel) ----------
@@ -1384,8 +1477,31 @@
 
     get_navigation_items: () => [],
     query_files: () => ({ files: [], total: 0, page: 1, pageSize: 20, hasMore: false }),
-    get_window_payload: () => null,
-    push_window_payload: () => null,
+    // Window payloads are kept in localStorage so the window opened in another tab can read them.
+    get_window_payload(args) {
+      const key = PAYLOAD_PREFIX + args.label
+      try {
+        const text = localStorage.getItem(key)
+        if (args.once !== false) {
+          localStorage.removeItem(key)
+        }
+        return text == null ? null : JSON.parse(text)
+      } catch (e) {
+        return null
+      }
+    },
+    push_window_payload(args) {
+      const key = PAYLOAD_PREFIX + args.label
+      let old = null
+      try {
+        const text = localStorage.getItem(key)
+        old = text == null ? null : JSON.parse(text)
+        localStorage.setItem(key, JSON.stringify(args.payload === undefined ? null : args.payload))
+      } catch (e) {
+        log('payload store failed', e)
+      }
+      return old
+    },
     get_windows_scale_info: () => ({ scale: window.devicePixelRatio || 1 }),
     parse_markdown: (args) => (args && (args.content || args.markdown)) || '',
     get_readme_html: () => '',
