@@ -1,14 +1,13 @@
 package nexus.io.tio.chat.config;
 
-import nexus.io.tio.chat.consts.ChatCode;
-import nexus.io.tio.chat.utils.ChatErrors;
-import nexus.io.tio.chat.utils.ChatResp;
-
 import lombok.extern.slf4j.Slf4j;
 import nexus.io.model.body.RespBodyVo;
 import nexus.io.model.exception.BusinessException;
 import nexus.io.model.exception.ParameterValidationException;
 import nexus.io.tio.boot.exception.TioBootExceptionHandler;
+import nexus.io.tio.chat.consts.ChatCode;
+import nexus.io.tio.chat.utils.ChatErrors;
+import nexus.io.tio.chat.utils.ChatResp;
 import nexus.io.tio.core.ChannelContext;
 import nexus.io.tio.http.common.HttpRequest;
 import nexus.io.tio.websocket.common.WebSocketRequest;

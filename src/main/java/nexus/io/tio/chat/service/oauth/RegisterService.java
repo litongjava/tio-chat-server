@@ -4,12 +4,12 @@ import com.jfinal.kit.Kv;
 
 import nexus.io.db.activerecord.Db;
 import nexus.io.jfinal.aop.Aop;
-import nexus.io.tio.chat.utils.ChatErrors;
 import nexus.io.tio.chat.consts.ChatCode;
 import nexus.io.tio.chat.consts.ImConst;
 import nexus.io.tio.chat.model.oauth.PasswordUpdateReq;
 import nexus.io.tio.chat.model.oauth.RegisterParam;
 import nexus.io.tio.chat.service.im.ImUserService;
+import nexus.io.tio.chat.utils.ChatErrors;
 import nexus.io.tio.chat.utils.ParameterValidationUtils;
 
 public class RegisterService {

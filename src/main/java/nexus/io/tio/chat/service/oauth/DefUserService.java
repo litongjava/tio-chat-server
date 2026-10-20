@@ -8,6 +8,7 @@ import cn.hutool.core.util.RandomUtil;
 import nexus.io.db.activerecord.Db;
 import nexus.io.db.activerecord.Row;
 import nexus.io.tio.chat.utils.AccountUtils;
+import nexus.io.tio.chat.utils.DbRows;
 import nexus.io.tio.utils.snowflake.SnowflakeIdUtils;
 
 /**
@@ -67,7 +68,7 @@ public class DefUserService {
         .set("readonly", 0).set("password", AccountUtils.hashPassword(password, salt)).set("salt", salt)
         .set("password_error_num", 0).set("tenant_id", tenantId).set("create_by", id)
         .set("create_time", LocalDateTime.now());
-    Db.save("def_user", user);
+    DbRows.save("def_user", user);
     return getById(id);
   }
 

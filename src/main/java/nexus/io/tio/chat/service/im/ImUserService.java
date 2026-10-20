@@ -10,6 +10,7 @@ import nexus.io.tio.chat.consts.MsgType;
 import nexus.io.tio.chat.model.im.chat.ChatMessageReq;
 import nexus.io.tio.chat.service.im.chat.MessageService;
 import nexus.io.tio.chat.utils.AccountUtils;
+import nexus.io.tio.chat.utils.DbRows;
 import nexus.io.tio.utils.snowflake.SnowflakeIdUtils;
 
 public class ImUserService {
@@ -39,7 +40,7 @@ public class ImUserService {
         .set("account", account).set("sex", sex == null ? 0 : sex).set("open_id", "")
         .set("resume", "这个人还没有填写个人简介呢").set("context", 0).set("state", 0).set("tenant_id", tenantId)
         .set("create_by", 1L);
-    Db.save("im_user", user);
+    DbRows.save("im_user", user);
 
     ContactService contactService = Aop.get(ContactService.class);
     RoomService roomService = Aop.get(RoomService.class);

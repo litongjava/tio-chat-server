@@ -5,6 +5,7 @@ import java.util.Objects;
 import nexus.io.db.activerecord.Db;
 import nexus.io.db.activerecord.Row;
 import nexus.io.jfinal.aop.Aop;
+import nexus.io.tio.chat.utils.DbRows;
 import nexus.io.tio.utils.snowflake.SnowflakeIdUtils;
 
 /**
@@ -30,7 +31,7 @@ public class ItemService {
     }
     Row row = Row.by("id", SnowflakeIdUtils.id()).set("uid", uid).set("item_id", itemId).set("status", 0)
         .set("idempotent", idempotent).set("create_by", uid).set("tenant_id", 1L);
-    Db.save("im_user_backpack", row);
+    DbRows.save("im_user_backpack", row);
   }
 
   /**

@@ -1,9 +1,8 @@
 package nexus.io.tio.chat.context;
 
-import nexus.io.tio.chat.utils.ChatErrors;
-import nexus.io.tio.chat.consts.ChatCode;
-
 import nexus.io.tio.boot.http.TioRequestContext;
+import nexus.io.tio.chat.consts.ChatCode;
+import nexus.io.tio.chat.utils.ChatErrors;
 import nexus.io.tio.http.common.HttpRequest;
 
 /**

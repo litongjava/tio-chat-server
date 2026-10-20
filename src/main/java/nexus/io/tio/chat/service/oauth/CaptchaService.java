@@ -14,11 +14,11 @@ import cn.hutool.core.util.RandomUtil;
 import lombok.extern.slf4j.Slf4j;
 import nexus.io.jfinal.aop.Aop;
 import nexus.io.redis.Redis;
-import nexus.io.tio.chat.utils.ChatErrors;
 import nexus.io.tio.chat.consts.ChatCode;
 import nexus.io.tio.chat.consts.RedisKeys;
 import nexus.io.tio.chat.service.common.MailService;
 import nexus.io.tio.chat.service.common.SysConfigService;
+import nexus.io.tio.chat.utils.ChatErrors;
 
 /**
  * 图形验证码、邮件验证码与短信验证码

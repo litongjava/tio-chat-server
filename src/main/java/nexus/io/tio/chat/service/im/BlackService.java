@@ -14,6 +14,7 @@ import nexus.io.tio.chat.model.im.user.BlackAddReq;
 import nexus.io.tio.chat.model.im.user.BlackEditReq;
 import nexus.io.tio.chat.model.im.user.BlackPageResp;
 import nexus.io.tio.chat.utils.ChatErrors;
+import nexus.io.tio.chat.utils.DbRows;
 import nexus.io.tio.chat.utils.Values;
 import nexus.io.tio.utils.snowflake.SnowflakeIdUtils;
 
@@ -38,7 +39,7 @@ public class BlackService {
     }
     Row row = Row.by("id", SnowflakeIdUtils.id()).set("type", req.getType()).set("target", target)
         .set("deadline", deadline).set("create_by", operator).set("tenant_id", 1L);
-    Db.save("im_black", row);
+    DbRows.save("im_black", row);
   }
 
   public void edit(BlackEditReq req, long operator) {

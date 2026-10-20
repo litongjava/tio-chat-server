@@ -1,7 +1,6 @@
 package nexus.io.tio.chat.model.im.user;
 
 import java.time.LocalDateTime;
-
 import java.util.List;
 
 import lombok.AllArgsConstructor;

@@ -10,6 +10,7 @@ import com.jfinal.kit.Kv;
 import nexus.io.db.activerecord.Db;
 import nexus.io.db.activerecord.Row;
 import nexus.io.tio.chat.consts.ImConst;
+import nexus.io.tio.chat.utils.DbRows;
 import nexus.io.tio.utils.snowflake.SnowflakeIdUtils;
 
 public class RoomService {
@@ -24,7 +25,7 @@ public class RoomService {
     long roomId = SnowflakeIdUtils.id();
     Row room = Row.by("id", roomId).set("type", type).set("hot_flag", 0).set("tenant_id", tenantId)
         .set("create_by", 1L);
-    Db.save("im_room", room);
+    DbRows.save("im_room", room);
     return roomId;
   }
 
@@ -48,7 +49,7 @@ public class RoomService {
     Row roomFriend = Row.by("id", SnowflakeIdUtils.id()).set("room_id", roomId).set("uid1", small).set("uid2", big)
         .set("room_key", key).set("de_friend1", 0).set("de_friend2", 0).set("tenant_id", tenantId)
         .set("create_by", 1L);
-    Db.save("im_room_friend", roomFriend);
+    DbRows.save("im_room_friend", roomFriend);
     return roomId;
   }
 
@@ -59,6 +60,6 @@ public class RoomService {
     }
     Row member = Row.by("id", SnowflakeIdUtils.id()).set("group_id", groupId).set("uid", uid).set("role_id", roleId)
         .set("remark", "").set("de_friend", 0).set("tenant_id", tenantId).set("create_by", uid);
-    Db.save("im_group_member", member);
+    DbRows.save("im_group_member", member);
   }
 }

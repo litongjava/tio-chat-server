@@ -7,7 +7,6 @@ import com.jfinal.kit.Kv;
 import cn.hutool.crypto.SecureUtil;
 import nexus.io.jfinal.aop.Aop;
 import nexus.io.redis.Redis;
-import nexus.io.tio.chat.utils.ChatErrors;
 import nexus.io.tio.chat.consts.ChatCode;
 import nexus.io.tio.chat.consts.RedisKeys;
 import nexus.io.tio.chat.context.LoginSession;
@@ -15,6 +14,7 @@ import nexus.io.tio.chat.model.oauth.QrCodeResp;
 import nexus.io.tio.chat.model.oauth.QrCodeResult;
 import nexus.io.tio.chat.model.oauth.QrCodeStatus;
 import nexus.io.tio.chat.model.oauth.ScanResp;
+import nexus.io.tio.chat.utils.ChatErrors;
 import nexus.io.tio.utils.json.JsonUtils;
 
 /**

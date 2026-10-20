@@ -29,6 +29,7 @@ import nexus.io.tio.chat.service.im.RoomQueryService;
 import nexus.io.tio.chat.service.im.chat.msg.MsgHandler;
 import nexus.io.tio.chat.service.im.chat.msg.MsgHandlers;
 import nexus.io.tio.chat.utils.ChatErrors;
+import nexus.io.tio.chat.utils.DbRows;
 import nexus.io.tio.chat.utils.Values;
 import nexus.io.tio.chat.ws.OnlineService;
 import nexus.io.tio.chat.ws.PushService;
@@ -82,7 +83,7 @@ public class MessageService {
         .set("status", MsgType.STATUS_NORMAL).set("gap_count", message.getGapCount()).set("type", message.getType())
         .set("extra", JsonUtils.toJson(message.getExtra())).set("create_time", now).set("create_by", uid)
         .set("tenant_id", 1L);
-    Db.save("im_message", row);
+    DbRows.save("im_message", row);
 
     if (req.isTemp() && !req.isPushMessage()) {
       Db.update("update im_user_friend set temp_msg_count=temp_msg_count+1 where room_id=? and uid=? and is_temp=1",

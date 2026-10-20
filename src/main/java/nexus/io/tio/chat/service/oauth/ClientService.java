@@ -6,8 +6,8 @@ import java.util.Base64;
 import com.jfinal.kit.Kv;
 
 import nexus.io.db.activerecord.Db;
-import nexus.io.tio.chat.utils.ChatErrors;
 import nexus.io.tio.chat.consts.ChatCode;
+import nexus.io.tio.chat.utils.ChatErrors;
 
 /**
  * 校验客户端凭证：Authorization 头为 base64(clientId:clientSecret)，允许带 Basic 前缀

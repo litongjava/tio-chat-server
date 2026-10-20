@@ -3,7 +3,6 @@ package nexus.io.tio.chat.service.oauth;
 import com.jfinal.kit.Kv;
 
 import nexus.io.jfinal.aop.Aop;
-import nexus.io.tio.chat.utils.ChatErrors;
 import nexus.io.tio.chat.consts.ChatCode;
 import nexus.io.tio.chat.consts.ImConst;
 import nexus.io.tio.chat.context.LoginSession;
@@ -12,6 +11,7 @@ import nexus.io.tio.chat.model.oauth.LoginResult;
 import nexus.io.tio.chat.service.im.BlackService;
 import nexus.io.tio.chat.service.im.ImUserService;
 import nexus.io.tio.chat.utils.AccountUtils;
+import nexus.io.tio.chat.utils.ChatErrors;
 import nexus.io.tio.chat.utils.ParameterValidationUtils;
 
 /**

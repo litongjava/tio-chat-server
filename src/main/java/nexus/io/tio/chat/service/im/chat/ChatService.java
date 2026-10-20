@@ -26,6 +26,7 @@ import nexus.io.tio.chat.model.im.chat.MessageRecord;
 import nexus.io.tio.chat.model.ws.WsBaseResp;
 import nexus.io.tio.chat.service.im.RoomQueryService;
 import nexus.io.tio.chat.utils.ChatErrors;
+import nexus.io.tio.chat.utils.DbRows;
 import nexus.io.tio.chat.utils.Values;
 import nexus.io.tio.chat.ws.PushService;
 import nexus.io.tio.utils.json.JsonUtils;
@@ -161,7 +162,7 @@ public class ChatService {
     if (old == null) {
       Row row = Row.by("id", SnowflakeIdUtils.id()).set("msg_id", msgId).set("uid", uid).set("type", markType)
           .set("status", status).set("create_by", uid).set("tenant_id", 1L);
-      Db.save("im_message_mark", row);
+      DbRows.save("im_message_mark", row);
     } else {
       Db.update("update im_message_mark set status=? where id=?", status, old.getLong("id"));
     }
