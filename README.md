@@ -119,6 +119,12 @@ sg docker -c "scripts/setup-deepseek.sh"   # 可选 DEEPSEEK_BASE_URL、OWNER（
 - 点击“停止思考”时客户端断开连接，服务端随即取消上游请求，已显示的内容保存为回答。
 - 会话的 `tokenUsage` 按平台返回的用量累计（没有用量时按字数估算）；客户端在累计值达到模型的 `maxTokens` 后不再发送。
 - API 密钥只返回给创建者，其他接口（包括后台列表）返回掩码。
+- 后台管理接口只允许管理员（拥有 `TENANT_ADMIN` 或 `SUPER_ADMIN` 角色）调用：`/api/ai/**/admin/*`、`chat/message/page`、对话与消息的 `delete-by-admin`，以及绘图、视频、音乐、写作、导图的管理接口 `page` / `update` / `delete`。`chat/conversation/page` 仍对所有登录用户开放（客户端的 AI 助手用它列出自己的对话，只返回本人的对话）。其他用户调用上述接口收到与原网关相同的 `code=406`、`msg=无此权限：<路径>`。角色按登录用户的 uid 在 `base_employee_role_rel` 中查找，`setup-deepseek.sh` 会给 `OWNER` 账号授予 `TENANT_ADMIN`；手工授予：
+
+```sql
+insert into base_employee_role_rel(id, role_id, employee_id, create_by, create_time, is_del, tenant_id)
+select <新编号>, id, <用户 uid>, 1, now(), 0, 1 from base_role where code='TENANT_ADMIN';
+```
 
 ## 构建与启动
 
@@ -140,6 +146,7 @@ docker run -d -p 18760:18760 -e JDBC_URL=... -e REDIS_HOST=... tio-chat-server
 
 - `/api/oauth`：登录、注册、验证码、扫码登录、个人信息、字典与参数
 - `/api/im`：用户、好友、会话、消息、群聊、通知、朋友圈、标签、统计
+  - 扩展接口：`GET /api/im/chat/msg/search`（单个会话的聊天记录，按 `keyword`、`types`、`startTime`/`endTime` 毫秒、`sort` 筛选，`pageNo`/`pageSize` 分页）与 `GET /api/im/chat/msg/files`（可访问会话中的文件、视频消息，按 `roomId`、`senderUid`、`keyword` 筛选，附发送人昵称与头像）。桌面客户端从本地 SQLite 查询这两类数据，没有本地库的客户端（如浏览器）用它们代替。两者都校验会话成员身份，不返回已删除的消息，关键词不匹配已撤回消息的原文。
 - `/api/ws/ws`：WebSocket
 - `/api/system`：初始化配置、上传凭证、地图、翻译、模型列表
 - `/api/base`：后台管理（通用增删改查 + 扩展接口）
@@ -160,6 +167,8 @@ scripts/smoke-feed.sh       # 朋友圈、标签、表情包、隐私
 scripts/smoke-base-crud.sh  # 后台通用增删改查
 scripts/smoke-base-ext.sh   # 后台扩展接口
 scripts/smoke-ai.sh         # AI 对话（配合 MockLlm.java 模拟模型）
+scripts/smoke-ai-admin.sh   # AI 后台管理接口的管理员校验
+scripts/smoke-history.sh    # 聊天记录检索、文件消息列表
 scripts/setup-deepseek.sh   # 登记 DeepSeek 模型（见“AI 模型”一节）
 ```
 

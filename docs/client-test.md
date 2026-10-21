@@ -20,6 +20,8 @@
 - `scripts/client-qrlogin-e2e.sh`：扫码登录（手机端的扫码、确认用 curl 模拟）。
 - `scripts/client-profile-group-e2e.sh`：设置窗口、修改昵称和头像、在线状态、群公告、邀请进群、设置管理员、移出成员（需要 MinIO）。
 - `scripts/client-ai-e2e.sh`：AI 助手对话（需要先用 `scripts/setup-deepseek.sh` 登记模型，见 README“AI 模型”一节）。
+- `scripts/client-oauth-e2e.sh`：第三方登录（Gitee）的授权页打开与回调登录。
+- `scripts/client-history-files-e2e.sh`：聊天记录窗口（关键词、图片/视频、文件、日期筛选）与文件管理窗口（按发送人、按会话、搜索、打开与另存为），需要 MinIO。
 
 ## 运行
 
@@ -43,7 +45,11 @@ sg docker -c "scripts/client-feed-e2e.sh client-e2e-out"
 sg docker -c "scripts/client-call-e2e.sh client-e2e-out"
 sg docker -c "scripts/client-qrlogin-e2e.sh client-e2e-out"
 sg docker -c "scripts/client-profile-group-e2e.sh client-e2e-out"
+sg docker -c "scripts/client-history-files-e2e.sh client-e2e-out"
+sg docker -c "scripts/client-oauth-e2e.sh client-e2e-out"
 ```
+
+每个脚本结束时（`finish`）把各标签页中垫片记录的未实现命令和失败命令追加到输出目录的 `shim-diagnostics.log`。
 
 两个用户分别使用 `127.0.0.1` 和 `localhost` 两个源打开页面，各自的 localStorage 互不影响；每次登录前会清空该源的本地状态，保证首次使用引导、登录表单的流程一致。
 
@@ -215,9 +221,69 @@ curl -N -XPOST localhost:18760/api/ai/chat/message/send-stream -H 'Content-Type:
 - 模型的 `publicStatus` 以布尔返回，客户端按数字 `0` 判断“官网模型”，公开模型被显示为“自建模型”；对话的 `tokenUsage` 以字符串返回，客户端不更新 Token 用量。
 - 回答内容超过 `ai_chat_message.content` 的 10240 字符时保存失败，现在截断保存。
 
+## 聊天记录与文件管理
+
+桌面客户端的“聊天记录”窗口（聊天输入框上方的历史图标，`/chat-history?roomId=...`）和左下角的“文件”窗口（`/fileManager`）都只查本地 SQLite：Rust 命令 `query_chat_history` 按会话、消息类型（`image` 为图片 3 和视频 6，`file` 为文件 4）、关键词（匹配正文、文件名、链接）、发送时间范围、排序和页码查询，返回 `{messages: MessageResp[], hasMore, currentPage}`；`query_files` 按导航（我的文件、按发送人、按会话、按群组）查询文件和视频消息，返回按日期分组的 `{timeGroupedFiles: [{date, displayDate, files: FileInfo[]}], userList, hasMore, currentPage}`，`get_navigation_items` 返回四个导航项。浏览器没有本地库，服务端新增两个接口代替（见 README“接口分组”），垫片按 Rust 的参数和返回结构转换：
+
+- `query_chat_history` → `GET /api/im/chat/msg/search`，消息转换为 `MessageResp`（`createId`、`createTime`、`fromUser`、`message`、`timeBlock`）。日期选择器给出的结束时间是当天零点，Rust 实现按 `send_time <= 结束时间` 过滤，选同一天时查不到任何消息；垫片把零点的结束时间延长到当天结束。`hasMore` 取服务端的 `isLast`，而不是“本页是否满页”。
+- `query_files` → `GET /api/im/chat/msg/files`，“按发送人”与 Rust 一致：列出与该联系人有消息往来的会话中的全部文件。`FileInfo.sender` 带服务端返回的昵称与头像（Rust 只有本地昵称，头像固定为默认图）；文件列表中的“来自”由客户端按当前会话的群成员显示，不在当前群里的发送人显示为“未知用户”，与桌面端相同。
+- 打开与保存文件：双击文件时客户端先下载到缓存目录再调用 opener 插件的 `open_path`，垫片在新标签页打开内存文件系统中的文件；“在文件夹中显示”（`reveal_item_in_dir`）改为浏览器下载。右键“另存为”时 `dialog` 插件的 `save` 返回虚拟的下载目录路径，客户端写入该路径时垫片触发浏览器下载。
+
+`scripts/client-history-files-e2e.sh` 注册 alice、bob、carol，alice 与两人互为好友；bob 和 carol 通过接口发消息（文件先用预签名地址上传到 MinIO）：bob 发两条含 kiwi 的文本（大小写不同，其中一条由 alice 发）、一条普通文本、一张图片、一个文件 `budget-*.txt`，carol 发一个文件 `notes-*.txt`。alice 在客户端：
+
+1. 打开与 bob 的会话，点击历史图标，聊天记录窗口显示全部 6 条消息（含加好友提示），按日期分组。
+2. 搜索 `kiwi`，只剩两条，关键词高亮（不区分大小写）；清空后恢复。
+3. “图片/视频”页只有那张图片（160×100，已加载）；“文件”页只有 `budget-*.txt`。
+4. 日期选择“今天 ~ 今天”仍是 6 条；选择本月 1 日（过去的一天）为 0 条。
+5. 打开文件窗口，“我的文件”列出 `budget-*` 与 `notes-*`；搜索 `notes` 只剩一个。
+6. “按发送人”选 carol 只剩 `notes-*`；“按会话”选 bob 只剩 `budget-*`。
+7. 双击文件，新标签页显示文件内容；右键“另存为”，浏览器下载该文件（`window.__TAURI_SHIM__.downloads` 记录文件名和大小）。
+
+截图：`70-history-all.png`、`71-history-keyword.png`、`72-history-images.png`、`73-history-files.png`、`74-history-today.png`、`75-history-past-day.png`、`80-files-all.png`、`81-files-sender.png`、`82-files-session.png`、`83-files-saved.png`、`84-files-opened.png`。
+
+接口层面的检查见 `scripts/smoke-history.sh`：关键词匹配正文和文件名、已撤回消息不参与匹配、类型与时间范围、升序分页、不是会话成员时报错、文件列表按会话、发送人和关键词筛选。
+
+## 第三方登录（Gitee / GitHub / GitCode）
+
+桌面端点击第三方登录时，Rust 命令 `start_oauth_server` 在 `127.0.0.1:36677` 监听并生成一次性 `secret`，客户端请求 `/api/oauth/anyTenant/{provider}/authorize-url?redirect=http://127.0.0.1:36677/?secret=...` 取得授权地址并在浏览器中打开；授权后服务端的 `callback` 用授权码登录，再重定向到 `redirect?token=...&refreshToken=...&uid=...`，本地监听校验 `secret` 后发出 `oauth-token` 事件，登录窗口据此保存令牌并进入主界面。
+
+浏览器中垫片的 `start_oauth_server` 返回当前页面的端口和一个保存在 localStorage 的一次性 `secret`，因此重定向地址就是前端自身（`http://127.0.0.1:<端口>/?secret=...`）。回调标签页加载垫片时识别出 `secret` 与 `token`（或 `code`），校验通过后通过 BroadcastChannel 向登录页发送 `oauth-token`，显示“登录成功”并自动关闭；`secret` 不符时显示错误，不发送事件。客户端把回调主机写死为 `127.0.0.1`，所以第三方登录只能在 `http://127.0.0.1:<端口>` 打开的前端中使用（`localhost` 源收不到回调）。服务端需要配置 `oauth.<provider>.client-id`、`client-secret` 和 `redirect-uri`（指向本服务的 `/api/oauth/anyTenant/<provider>/callback`），本地没有第三方应用凭据，`scripts/client-oauth-e2e.sh` 验证除第三方授权页以外的整个流程：
+
+1. 登录页切到“扫码登录”，点击 Gitee 图标：垫片生成一次性 `secret`，客户端取得授权地址并通过 `shell.open` 在新标签页打开 gitee.com（`state` 中带着垫片给出的回调地址）。
+2. 用错误的 `secret` 打开回调地址，页面显示 “invalid or missing secret”，不会登录。
+3. 用密码登录接口取得令牌，按服务端 `callback` 的格式打开 `/?secret=<secret>?token=...&refreshToken=...&uid=...`：回调页显示“登录成功”，登录页收到 `oauth-token` 后进入主界面，当前用户为该账号。
+
+截图：`90-oauth-callback.png`、`91-oauth-logged-in.png`。
+
+
+## 覆盖情况
+
+各脚本最近一次全部通过；脚本结束时收集的 `shim-diagnostics.log` 中所有标签页的未实现命令和失败命令都为空。
+
+- 账号：密码登录、扫码登录、第三方登录回调（`client-e2e.sh`、`client-qrlogin-e2e.sh`、`client-oauth-e2e.sh`）。
+- 单聊与群聊：会话列表、消息收发与实时推送、撤回、已读、好友列表（`client-e2e.sh`、`client-group-e2e.sh`）。
+- 图片、文件、视频：MinIO 预签名直传、接收方实时显示、下载、另存为、打开（`client-upload-e2e.sh`、`client-history-files-e2e.sh`）；视频首帧缩略图用页面内调用验证。
+- 好友与群：按账号搜索加好友、申请加群、群公告、邀请、管理员、移出成员（`client-friend-e2e.sh`、`client-profile-group-e2e.sh`）。
+- 朋友圈：发布、图片动态、点赞、评论、通知（`client-feed-e2e.sh`）。
+- 语音、视频通话：呼叫、接通、挂断、拒绝、取消、通话记录（`client-call-e2e.sh`，浏览器用伪造的摄像头和麦克风）。
+- 设置、个人资料、在线状态、存储扫描（`client-profile-group-e2e.sh`）。
+- AI 助手：模型与角色、流式回答、深度思考、停止生成、历史（`client-ai-e2e.sh`，需要 DeepSeek 密钥）。
+- 聊天记录与文件管理：关键词、类型、日期筛选，按发送人、按会话（`client-history-files-e2e.sh`）。
+- 接口层面另有 `scripts/smoke-*.sh`，其中 `smoke-history.sh` 覆盖聊天记录检索与文件列表，`smoke-ai-admin.sh` 覆盖 AI 后台管理接口的管理员校验（普通用户 `406 无此权限`，`TENANT_ADMIN` 正常返回）。
+
+已知限制：
+
+- 截图（`screenshot`，捕获整个桌面的原始像素）没有浏览器实现：浏览器只能通过 `getDisplayMedia` 让用户手动选择屏幕，而截图窗口是新打开的标签页，没有用户手势，无法发起屏幕共享。
+- `qiniu_upload_resumable`（七牛分片上传）不实现：它由 Rust 直接按七牛的分片接口上传本地文件，浏览器联调统一使用 MinIO 预签名直传。
+- `start_oauth_server` 不在本地监听端口，而是以前端自身作为回调地址；客户端写死回调主机 `127.0.0.1`，第三方登录只能在 `127.0.0.1` 源中使用。真实的第三方授权需要在服务端配置应用凭据，本地未验证。
+- 移动端、iOS 专用命令（`set_complete`、`hide_splash_screen`、`set_ios_badge`、`trigger_haptic_feedback` 等）和移动端的会话内搜索页（`searchContent`）不在测试范围内。
+- 本地 SQLite 相关命令（`save_msg`、`sync_messages`、`delete_message`、`delete_room_messages` 等）为空操作，数据每次从服务端读取，因此“删除本地聊天记录”在浏览器中没有效果。
+- `audio`（播放应用内置提示音）、`debug_message_stats` 等未被桌面界面调用的命令没有实现。
+
 ## 说明
 
-- 垫片不使用本地 SQLite：会话、消息、群成员每次直接从服务端读取，`save_msg`、`sync_messages` 等本地缓存命令为空操作。
+- 垫片不使用本地 SQLite：会话、消息、群成员每次直接从服务端读取，`save_msg`、`sync_messages` 等本地缓存命令为空操作；聊天记录检索和文件管理改为查询服务端。
+- 原生能力的浏览器替代：`shell.open` 与 opener 的 `open_url` 在新标签页打开链接；`open_path` 在新标签页打开内存文件系统中的文件，`reveal_item_in_dir` 改为浏览器下载；“另存为”对话框返回虚拟下载目录，写入时触发浏览器下载；`get_video_thumbnail` 用 `<video>` 和 canvas 截取首帧（JPEG base64，字段与 Rust 一致）。
 - 只在桌面端打开的辅助窗口（加好友、设置等）会以新标签页打开；主窗口（登录、主界面）在当前标签页切换。
 - dsb 的任务共用一个 Chrome，最后一个任务关闭时浏览器会保留它的页面。遗留的页面仍在运行客户端，和新页面同源时会通过 BroadcastChannel 和 localStorage 互相干扰（例如收到旧账号的来电）。测试脚本结束时用 `finish` 关闭新标签页并把主页面切到空白页；如果之前有中断的测试，先在没有其他任务时执行 `dsb close --close-browser` 关闭浏览器再测。
 - 浏览器登录会使同一设备类型（PC）之前签发的令牌失效，测试脚本在浏览器登录后需要调用接口时，用另一个设备类型（如 `MOBILE`）重新登录取得令牌。
