@@ -72,7 +72,7 @@ public class ChatService {
   /**
    * 被移出群聊的成员只能看到移出前的消息
    */
-  private Long lastVisibleMsgId(long roomId, long uid) {
+  Long lastVisibleMsgId(long roomId, long uid) {
     RoomQueryService roomQueryService = Aop.get(RoomQueryService.class);
     if (roomQueryService.isMember(roomId, uid)) {
       return null;
@@ -135,7 +135,7 @@ public class ChatService {
     return Db.query(sql, uid, uid);
   }
 
-  private List<ChatMessageResp> filterBlack(List<ChatMessageResp> list) {
+  List<ChatMessageResp> filterBlack(List<ChatMessageResp> list) {
     List<String> black = Db.query("select target from im_black where type=2 and is_del=0 and deadline>now()");
     if (black.isEmpty()) {
       return list;
