@@ -1519,6 +1519,45 @@
         }
       })
     },
+    // Storage settings: the "disk" is the browser's storage quota, the directory is the in-memory file system.
+    async get_directory_usage_info_with_progress(args) {
+      const prefix = vfsKey(args.directoryPath || '').replace(/\/$/, '')
+      let total = 0
+      let files = 0
+      for (const [key, entry] of vfs) {
+        if (!prefix || key === prefix || key.startsWith(prefix + '/')) {
+          total += entry.bytes.byteLength
+          files++
+        }
+      }
+      let quota = 0
+      let usage = 0
+      try {
+        const estimate = await navigator.storage.estimate()
+        quota = estimate.quota || 0
+        usage = estimate.usage || 0
+      } catch (e) {
+        log('storage estimate failed', e)
+      }
+      deliver('directory-scan-complete', {
+        current_path: args.directoryPath || '',
+        files_processed: files,
+        total_size: total,
+        elapsed_time: 0,
+        elapsed_seconds: 0,
+        progress_percentage: 100
+      })
+      return {
+        path: args.directoryPath || '',
+        total_size: total,
+        disk_mount_point: '/',
+        disk_total_space: quota,
+        disk_used_space: usage,
+        disk_usage_percentage: quota ? (usage / quota) * 100 : 0,
+        usage_percentage: quota ? (total / quota) * 100 : 0
+      }
+    },
+    cancel_directory_scan: () => null,
     upload_file_put: (args) => uploadPut(args),
     ai_message_send_stream: (args) => aiSendStream(args),
     ai_message_cancel_stream: (args) => aiCancelStream(args),
@@ -1526,6 +1565,10 @@
       throw 'qiniu resumable upload is not available in the browser shim; use the MinIO storage engine'
     }
   }
+
+  // Commands without a browser implementation, for diagnostics: window.__TAURI_SHIM__.unhandled
+  const unhandled = new Set()
+  const failures = []
 
   async function invoke(cmd, args, options) {
     args = args || {}
@@ -1537,11 +1580,13 @@
       const handler = handlers[cmd]
       if (!handler) {
         log('unhandled command', cmd, args)
+        unhandled.add(cmd)
         return null
       }
       return await handler(args, options)
     } catch (e) {
       log('command failed', cmd, e)
+      failures.push({ cmd, error: typeof e === 'string' ? e : String((e && e.message) || e) })
       throw typeof e === 'string' ? e : String((e && e.message) || e)
     }
   }
@@ -1559,6 +1604,6 @@
     },
     plugins: { path: { sep: '/', delimiter: ':' } }
   }
-  window.__TAURI_SHIM__ = { auth, ws, label: LABEL, api }
+  window.__TAURI_SHIM__ = { auth, ws, label: LABEL, api, unhandled, failures }
   log('installed for window', LABEL)
 })()
