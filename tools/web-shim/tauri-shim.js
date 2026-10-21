@@ -243,6 +243,50 @@
     }
   }
 
+  // ---------- third-party login callback ----------
+  // The desktop app listens on 127.0.0.1:36677 for the server's redirect after Gitee/GitHub/GitCode login.
+  // Here the redirect target is this origin: the callback tab checks the one-time secret, hands the tokens
+  // to the login window over the event bus and closes itself.
+  const OAUTH_SECRET_KEY = '__shim_oauth_secret'
+
+  function startOauthServer() {
+    const secret = (crypto.randomUUID && crypto.randomUUID()) || String(Math.random()).slice(2) + Date.now()
+    localStorage.setItem(OAUTH_SECRET_KEY, secret)
+    return { port: Number(location.port) || (location.protocol === 'https:' ? 443 : 80), secret }
+  }
+
+  function handleOauthCallback() {
+    // the server appends "?token=..." to a redirect that already has "?secret=...", so read both parts
+    const query = new URLSearchParams(location.search.replace(/\?/g, '&'))
+    const secret = query.get('secret')
+    if (!secret || (!query.get('token') && !query.get('code'))) {
+      return false
+    }
+    const expected = localStorage.getItem(OAUTH_SECRET_KEY)
+    let ok = !!expected && expected === secret
+    if (ok) {
+      localStorage.removeItem(OAUTH_SECRET_KEY)
+      if (query.get('token')) {
+        const payload = `token=${query.get('token')}&refreshToken=${query.get('refreshToken') || ''}&uid=${query.get('uid') || ''}`
+        emit('oauth-token', payload, null)
+      } else {
+        emit('gitee-auth-code', query.get('code'), null)
+      }
+    }
+    window.stop()
+    document.documentElement.innerHTML = ok
+      ? "<body style='display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif'><h1>登录成功</h1><p>您可以关闭此窗口返回应用。</p></body>"
+      : '<body>invalid or missing secret</body>'
+    if (ok) {
+      setTimeout(() => window.close(), 2000)
+    }
+    return true
+  }
+
+  if (handleOauthCallback()) {
+    return
+  }
+
   window.__TAURI_EVENT_PLUGIN_INTERNALS__ = {
     unregisterListener(event, id) {
       const list = listeners.get(event)
@@ -1250,6 +1294,12 @@
           location.reload()
         }
         return null
+      case 'shell':
+        // shell.open(path): links and the third-party login page open in a new tab
+        if (command === 'open' && args && args.path) {
+          window.open(args.path, '_blank', 'noreferrer')
+        }
+        return null
       case 'opener':
         if (command === 'open_url' && args && args.url) {
           window.open(args.url, '_blank')
@@ -1527,6 +1577,35 @@
     return { timeGroupedFiles, userList: [...users.values()], hasMore: total >= (param.pageSize || 20), currentPage: param.page || 1 }
   }
 
+  // First frame of a video in the in-memory file system, like the desktop app's get_video_thumbnail
+  function videoThumbnail(args) {
+    const entry = vfsGet(args.videoPath)
+    const url = URL.createObjectURL(new Blob([entry.bytes], { type: entry.type || 'video/mp4' }))
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video')
+      const done = (fn, value) => {
+        URL.revokeObjectURL(url)
+        video.removeAttribute('src')
+        fn(value)
+      }
+      video.muted = true
+      video.preload = 'auto'
+      video.onerror = () => done(reject, '视频文件无法解码')
+      video.onloadedmetadata = () => {
+        video.currentTime = Math.min(args.targetTime || 0, Math.max(0, (video.duration || 0) - 0.05))
+      }
+      video.onseeked = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        canvas.getContext('2d').drawImage(video, 0, 0)
+        const base64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1]
+        done(resolve, { thumbnail_base64: base64, width: canvas.width, height: canvas.height, duration: video.duration || 0 })
+      }
+      video.src = url
+    })
+  }
+
   const NAVIGATION_ITEMS = [
     { key: 'myFiles', label: '我的文件', icon: 'file', active: true },
     { key: 'senders', label: '发送人', icon: 'avatar', active: false },
@@ -1765,6 +1844,8 @@
       }
     },
     cancel_directory_scan: () => null,
+    start_oauth_server: () => startOauthServer(),
+    get_video_thumbnail: (args) => videoThumbnail(args),
     upload_file_put: (args) => uploadPut(args),
     ai_message_send_stream: (args) => aiSendStream(args),
     ai_message_cancel_stream: (args) => aiCancelStream(args),
