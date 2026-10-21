@@ -33,12 +33,14 @@ public class ChatTokenInterceptor implements HttpRequestInterceptor {
       """.strip());
 
   /**
-   * AI 后台管理接口（原系统归属"管理后台"菜单，跨用户读写），仅管理员可访问
+   * AI 后台管理接口（原系统归属"管理后台"菜单，跨用户读写），仅管理员可访问。
+   * chat/conversation/page 除外：客户端的 AI 助手用它列出自己的对话，服务端只返回本人的对话
    */
   private static final Pattern AI_ADMIN_PATH = Pattern.compile(
       """
       ^/api/ai/.+/admin/.+\
-      |^/api/ai/chat/(conversation|message)/(page|delete-by-admin)$\
+      |^/api/ai/chat/conversation/delete-by-admin$\
+      |^/api/ai/chat/message/(page|delete-by-admin)$\
       |^/api/ai/(image|video|music|write|mind-map)/(page|update|delete)$\
       """.strip());
 
