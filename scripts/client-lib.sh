@@ -66,8 +66,8 @@ from urllib.parse import urlparse
 tabs = json.loads(sys.stdin.read()).get('tabs', [])
 hits = [t['index'] for t in tabs if urlparse(t['url']).path.startswith(sys.argv[1])]
 print(hits[-1] if hits else '')" "$2" 2>/dev/null || true)
-    if [ -n "$idx" ]; then
-      "$1" run switch_tab -p pageIndex="$idx"
+    # tabs that close meanwhile shift the indexes, so look again when switching fails
+    if [ -n "$idx" ] && "$1" run switch_tab -p pageIndex="$idx" | grep -q " OK "; then
       "$1" run set_viewport -p width=1100 -p height=760 >/dev/null
       return 0
     fi

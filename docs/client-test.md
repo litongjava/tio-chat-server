@@ -18,6 +18,7 @@
 - `scripts/client-feed-e2e.sh`：朋友圈发布、图片动态、点赞评论与实时通知（需要 MinIO）。
 - `scripts/client-call-e2e.sh`：语音、视频通话的接通、挂断、拒绝、取消与通话记录。
 - `scripts/client-qrlogin-e2e.sh`：扫码登录（手机端的扫码、确认用 curl 模拟）。
+- `scripts/client-profile-group-e2e.sh`：设置窗口、修改昵称和头像、在线状态、群公告、邀请进群、设置管理员、移出成员（需要 MinIO）。
 - `scripts/client-ai-e2e.sh`：AI 助手对话（需要先用 `scripts/setup-deepseek.sh` 登记模型，见 README“AI 模型”一节）。
 
 ## 运行
@@ -41,6 +42,7 @@ sg docker -c "scripts/client-friend-e2e.sh client-e2e-out"
 sg docker -c "scripts/client-feed-e2e.sh client-e2e-out"
 sg docker -c "scripts/client-call-e2e.sh client-e2e-out"
 sg docker -c "scripts/client-qrlogin-e2e.sh client-e2e-out"
+sg docker -c "scripts/client-profile-group-e2e.sh client-e2e-out"
 ```
 
 两个用户分别使用 `127.0.0.1` 和 `localhost` 两个源打开页面，各自的 localStorage 互不影响；每次登录前会清空该源的本地状态，保证首次使用引导、登录表单的流程一致。
@@ -163,6 +165,24 @@ sg docker -c "scripts/client-qrlogin-e2e.sh client-e2e-out"
 
 截图：`51-qr-code.png`、`52-qr-scanned.png`、`53-qr-logged-in.png`。
 
+## 设置、个人资料、在线状态与群管理
+
+`scripts/client-profile-group-e2e.sh` 注册 alice 及 4 个好友（bob、carol、dave、eve），alice 用 bob、carol、dave 建群，然后：
+
+1. 设置窗口（左下角菜单 →“设置”，新标签页）：依次打开通用、通知、快捷键、登录、存储；存储页点击“开始扫描”，显示磁盘分区总容量等信息。检查垫片记录的未实现命令和失败命令都为空（`window.__TAURI_SHIM__.unhandled` / `failures`）。
+2. 个人资料：点击头像 →“编辑资料”，修改昵称后保存，提示“保存成功”；点击头像选择图片，裁剪后上传到 MinIO。接口返回的昵称和头像地址都已更新。
+3. 在线状态：点击头像弹出框中的“在线”，在线状态窗口选择“忙碌”；bob 打开着与 alice 的会话，头部实时显示“忙碌”。
+4. 群公告：alice 在群聊右侧点击“群公告须知”，在公告窗口填写并发布，窗口自动关闭；bob 的群聊中出现公告消息，右侧公告栏同步更新。
+5. 邀请进群：alice 点击聊天头部的“邀请进群”，邀请窗口（`modal-invite`，通过窗口载荷取得群号）列出好友，选择 eve 并确定；eve 用接口同意邀请后，群里出现“…邀请 eve 加入群聊”。
+6. 设置管理员：alice 在右侧成员列表右键 bob，菜单包含发送消息、查看信息、设为管理员、移出群聊等，点击“设为管理员”；bob 一侧实时显示“管理员”标识。
+7. 移出成员：右键 carol →“移出群聊”；再通过“…”→“管理群成员”勾选 dave，点击“踢出群聊”并确认。接口核对群成员为 alice（群主）、bob（管理员）、eve。
+
+截图：`61-settings-storage.png`、`62-profile-edited.png`、`63-bob-sees-busy.png`、`64-bob-announcement.png`、`65-invite.png`、`66-bob-admin.png`、`67-members-managed.png`。
+
+垫片补充：存储设置页调用的 `get_directory_usage_info_with_progress` 用内存文件系统统计目录大小、用 `navigator.storage.estimate()` 作为磁盘容量，并发送 `directory-scan-complete` 事件；`cancel_directory_scan` 为空操作。
+
+与原服务端一致、未改动的行为：修改昵称和头像不推送给好友，好友刷新后才看到新资料；群成员不超过 3 人时移出成员会直接解散群聊；在另一台设备上建群不会推送到建群人自己的其他设备。
+
 ## AI 助手（DeepSeek）
 
 桌面客户端的 AI 助手是 `/robot` 窗口。发送消息时页面调用 Rust 命令 `ai_message_send_stream`，参数是请求体 `body`（`conversationId`、`content`、`useContext`、`reasoningEnabled`）、`requestId` 和一个 Channel；Rust 层 POST `ai/chat/message/send-stream`，收到响应头后命令立即返回，随后在后台按 `\n\n` 切分 SSE 事件，每个 `data:` 行作为一条 `{eventType: "chunk", data, requestId}` 发到 Channel，流结束时发送 `done`（`data` 为全部数据拼接），出错时发送 `error`。停止生成调用 `ai_message_cancel_stream`，中止后台任务后不再发送任何事件。垫片按同样的顺序和字段实现这两个命令：用 `fetch` 读取响应流，`TextDecoder` 按流式方式解码（多字节汉字被拆在两个数据块中也能正确拼接），取消时中止 `fetch`。
@@ -199,5 +219,6 @@ curl -N -XPOST localhost:18760/api/ai/chat/message/send-stream -H 'Content-Type:
 
 - 垫片不使用本地 SQLite：会话、消息、群成员每次直接从服务端读取，`save_msg`、`sync_messages` 等本地缓存命令为空操作。
 - 只在桌面端打开的辅助窗口（加好友、设置等）会以新标签页打开；主窗口（登录、主界面）在当前标签页切换。
+- dsb 的任务共用一个 Chrome，最后一个任务关闭时浏览器会保留它的页面。遗留的页面仍在运行客户端，和新页面同源时会通过 BroadcastChannel 和 localStorage 互相干扰（例如收到旧账号的来电）。测试脚本结束时用 `finish` 关闭新标签页并把主页面切到空白页；如果之前有中断的测试，先在没有其他任务时执行 `dsb close --close-browser` 关闭浏览器再测。
 - 浏览器登录会使同一设备类型（PC）之前签发的令牌失效，测试脚本在浏览器登录后需要调用接口时，用另一个设备类型（如 `MOBILE`）重新登录取得令牌。
 - 首次启动时 Vite 会预构建依赖并自动刷新一次页面，垫片会保留当前窗口标签，刷新后状态不受影响。
