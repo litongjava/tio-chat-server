@@ -682,6 +682,24 @@
     vfs.set(vfsKey(path), { bytes, type: type || mimeOf(path), mtime: Date.now() })
   }
 
+  // Files the user saves through the "save as" dialog
+  const SAVE_DIR = '/browser-downloads/'
+  const downloads = []
+  const opened = []
+
+  function browserDownload(path) {
+    const entry = vfsGet(path)
+    const name = String(path).split('/').pop()
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([entry.bytes], { type: entry.type }))
+    a.download = name
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000)
+    downloads.push({ name, size: entry.bytes.byteLength })
+  }
+
   function vfsGet(path) {
     const entry = vfs.get(vfsKey(path))
     if (!entry) {
@@ -1188,7 +1206,9 @@
           return dialogOpen(args.options)
         }
         if (command === 'save') {
-          return null
+          // "Save as": hand out a path in a virtual downloads folder; writing it triggers a browser download.
+          const name = String((args.options && args.options.defaultPath) || 'download').split(/[\\/]/).pop()
+          return SAVE_DIR + name
         }
         if (command === 'ask' || command === 'confirm') {
           return window.confirm(args.message || '')
@@ -1234,6 +1254,23 @@
         if (command === 'open_url' && args && args.url) {
           window.open(args.url, '_blank')
         }
+        // Opening a downloaded file shows it in a new tab; "show in folder" saves it through the browser.
+        if (command === 'open_path' && args && args.path) {
+          const url = /^(https?|blob):/.test(args.path) ? args.path : convertFileSrc(args.path)
+          if (url === args.path && !/^(https?|blob):/.test(url)) {
+            throw 'file not found: ' + args.path
+          }
+          opened.push(args.path)
+          window.open(url, '_blank')
+        }
+        if (command === 'reveal_item_in_dir' && args) {
+          const paths = [].concat(args.paths || args.path || [])
+          for (const path of paths) {
+            if (vfs.has(vfsKey(path))) {
+              browserDownload(path)
+            }
+          }
+        }
         return null
       default:
         return null
@@ -1260,7 +1297,11 @@
       case 'write_text_file': {
         // Raw-body invoke: the bytes are the args, the path travels in the headers.
         const headers = (options && options.headers) || {}
-        vfsPut(decodeURIComponent(headers.path || ''), toBytes(args))
+        const path = decodeURIComponent(headers.path || '')
+        vfsPut(path, toBytes(args))
+        if (path.startsWith(SAVE_DIR)) {
+          browserDownload(path)
+        }
         return null
       }
       case 'read_file':
@@ -1326,6 +1367,172 @@
         return null
     }
   }
+
+
+  // ---------- chat history and file manager (local SQLite in the desktop app, server queries here) ----------
+  const DAY_MS = 24 * 60 * 60 * 1000
+  const HISTORY_TYPES = { image: '3,6', file: '4' }
+
+  // Server ChatMessageResp -> the Rust MessageResp shape
+  function toMessageResp(item) {
+    const msg = item.message || {}
+    return {
+      createId: msg.id,
+      createTime: msg.sendTime,
+      updateId: null,
+      updateTime: null,
+      fromUser: { uid: String((item.fromUser && item.fromUser.uid) || ''), nickname: (item.fromUser && item.fromUser.name) || null },
+      message: {
+        id: msg.id,
+        roomId: msg.roomId,
+        type: msg.type,
+        body: msg.body,
+        messageMarks: msg.messageMarks && Object.keys(msg.messageMarks).length ? msg.messageMarks : null,
+        sendTime: msg.sendTime
+      },
+      oldMsgId: null,
+      timeBlock: null
+    }
+  }
+
+  function isLocalMidnight(ms) {
+    const d = new Date(ms)
+    return d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0 && d.getMilliseconds() === 0
+  }
+
+  async function queryChatHistory(param) {
+    param = param || {}
+    const pagination = param.pagination || { page: 1, pageSize: 20 }
+    const range = param.dateRange || {}
+    let endTime = range.endTime == null ? null : range.endTime
+    // The date picker yields midnight of the last day; include that whole day.
+    if (endTime != null && isLocalMidnight(endTime)) {
+      endTime += DAY_MS - 1
+    }
+    const keyword = param.searchKeyword && param.searchKeyword.trim()
+    const page = await request('GET', 'im/chat/msg/search', null, {
+      roomId: param.roomId,
+      types: HISTORY_TYPES[param.messageType] || '',
+      keyword: keyword || '',
+      startTime: range.startTime == null ? '' : range.startTime,
+      endTime: endTime == null ? '' : endTime,
+      sort: param.sortOrder === 'asc' ? 'asc' : 'desc',
+      pageNo: pagination.page,
+      pageSize: pagination.pageSize
+    })
+    const list = (page && page.list) || []
+    return { messages: list.map(toMessageResp), hasMore: !!page && !page.isLast, currentPage: pagination.page }
+  }
+
+  function pad2(n) {
+    return String(n).padStart(2, '0')
+  }
+
+  function formatLocal(ms) {
+    const d = new Date(ms)
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
+  }
+
+  function displayDate(dateText) {
+    const [y, m, d] = dateText.split('-').map(Number)
+    const day = new Date(y, m - 1, d)
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const diff = Math.round((today - day) / DAY_MS)
+    if (diff === 0) {
+      return '今天'
+    }
+    if (diff === 1) {
+      return '昨天'
+    }
+    if (y === today.getFullYear()) {
+      return `${pad2(m)}月${pad2(d)}日`
+    }
+    return `${y}年${pad2(m)}月${pad2(d)}日`
+  }
+
+  // File/video message -> the Rust FileInfo shape
+  function toFileInfo(item) {
+    const msg = item.message || {}
+    const body = msg.body || {}
+    if (msg.type !== 4 && msg.type !== 6) {
+      return null
+    }
+    let fileName = body.fileName
+    if (!fileName && msg.type === 6 && body.url) {
+      fileName = String(body.url).split('/').pop().split('?')[0]
+    }
+    if (!fileName) {
+      return null
+    }
+    const size = body.fileSize != null ? body.fileSize : body.size
+    const sender = item.fromUser || {}
+    return {
+      id: msg.id,
+      fileName,
+      fileSize: Number(size) || 0,
+      fileType: msg.type === 4 ? 'file' : 'video',
+      uploadTime: formatLocal(msg.sendTime || 0),
+      sender: { id: String(sender.uid || ''), name: sender.name || '未知用户', avatar: sender.avatar || '/avatars/default.jpg', isOnline: null },
+      downloadUrl: body.url || body.downloadUrl || null,
+      isDownloaded: false,
+      status: 'completed',
+      thumbnailUrl: body.thumbnailUrl || body.thumbUrl || null
+    }
+  }
+
+  async function queryFiles(param) {
+    param = param || {}
+    const query = { keyword: (param.searchKeyword && param.searchKeyword.trim()) || '', pageNo: param.page || 1, pageSize: param.pageSize || 20 }
+    switch (param.navigationType) {
+      case 'myFiles':
+        break
+      case 'senders':
+        query.senderUid = param.selectedUser || ''
+        break
+      case 'sessions':
+      case 'groups':
+        query.roomId = param.roomId || ''
+        break
+      default:
+        throw '不支持的导航类型'
+    }
+    const page = await request('GET', 'im/chat/msg/files', null, query)
+    let files = ((page && page.list) || []).map(toFileInfo).filter(Boolean)
+    const users = new Map()
+    for (const f of files) {
+      users.set(f.sender.id, f.sender)
+    }
+    if (query.keyword) {
+      const kw = query.keyword.toLowerCase()
+      files = files.filter((f) => f.fileName.toLowerCase().includes(kw))
+    }
+    const total = files.length
+    const groups = new Map()
+    for (const f of files) {
+      const date = f.uploadTime.slice(0, 10)
+      if (!groups.has(date)) {
+        groups.set(date, [])
+      }
+      groups.get(date).push(f)
+    }
+    const timeGroupedFiles = [...groups.keys()]
+      .sort()
+      .reverse()
+      .map((date) => ({
+        date,
+        displayDate: displayDate(date),
+        files: groups.get(date).sort((a, b) => b.uploadTime.localeCompare(a.uploadTime))
+      }))
+    return { timeGroupedFiles, userList: [...users.values()], hasMore: total >= (param.pageSize || 20), currentPage: param.page || 1 }
+  }
+
+  const NAVIGATION_ITEMS = [
+    { key: 'myFiles', label: '我的文件', icon: 'file', active: true },
+    { key: 'senders', label: '发送人', icon: 'avatar', active: false },
+    { key: 'sessions', label: '会话', icon: 'message', active: false },
+    { key: 'groups', label: '群聊', icon: 'peoples', active: false }
+  ]
 
   // ---------- app commands (Rust layer) ----------
   const handlers = {
@@ -1417,7 +1624,7 @@
     update_message_recall_status: () => null,
     delete_message: () => null,
     delete_room_messages: () => 0,
-    query_chat_history: () => ({ messages: [], hasMore: false, currentPage: 1 }),
+    query_chat_history: (args) => queryChatHistory(args && args.param),
 
     page_room: (args) => api('groupList', null, args.pageParam),
     async get_room_members(args) {
@@ -1475,8 +1682,8 @@
     hide_splash_screen: () => null,
     set_complete: () => null,
 
-    get_navigation_items: () => [],
-    query_files: () => ({ files: [], total: 0, page: 1, pageSize: 20, hasMore: false }),
+    get_navigation_items: () => NAVIGATION_ITEMS.map((item) => ({ ...item })),
+    query_files: (args) => queryFiles(args && args.param),
     // Window payloads are kept in localStorage so the window opened in another tab can read them.
     get_window_payload(args) {
       const key = PAYLOAD_PREFIX + args.label
@@ -1604,6 +1811,6 @@
     },
     plugins: { path: { sep: '/', delimiter: ':' } }
   }
-  window.__TAURI_SHIM__ = { auth, ws, label: LABEL, api, unhandled, failures }
+  window.__TAURI_SHIM__ = { auth, ws, label: LABEL, api, unhandled, failures, downloads, opened }
   log('installed for window', LABEL)
 })()
