@@ -103,4 +103,5 @@ js_true "document.body.innerText.includes('四大发明')" 30
 sleep 1
 shot d 07-ai-history-after-stop.png
 
+finish d
 ls -la "$OUT"

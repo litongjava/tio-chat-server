@@ -7,6 +7,7 @@ B_URL=http://localhost:$WEB_PORT
 # Define a command function bound to one dsb task: task <name> <id>
 task() {
   eval "$1() { dsb --id $2 --summary \"\$@\" 2>&1 | tail -1; }"
+  eval "$1_raw() { dsb --id $2 \"\$@\" 2>/dev/null | tail -1; }"
 }
 
 # Reset any scroll left by clicks, then capture: shot <task> <file>
@@ -85,7 +86,20 @@ wait_text() {
 # Close a task without leaving pages behind (the shared browser keeps the last task's pages,
 # and windows opened as tabs would keep running the client): finish <task>
 finish() {
+  diagnose "$1" || true
   "$1" run close_other_tabs >/dev/null 2>&1 || true
   "$1" run go_to_url -p url=about:blank >/dev/null 2>&1 || true
   "$1" close
+}
+
+# Append the shim's diagnostics of every open tab (commands without a browser implementation and failed
+# commands, see window.__TAURI_SHIM__) to $OUT/shim-diagnostics.log: diagnose <task>
+diagnose() {
+  local n i
+  n=$("$1" run get_tabs | python3 -c "import sys, json; print(len(json.loads(sys.stdin.read()).get('tabs', [])))")
+  for i in $(seq 0 $((n - 1))); do
+    "$1" run switch_tab -p pageIndex="$i" >/dev/null
+    "$1_raw" js "JSON.stringify(window.__TAURI_SHIM__ ? {url: location.pathname, unhandled: [...window.__TAURI_SHIM__.unhandled], failures: window.__TAURI_SHIM__.failures} : {url: location.href})" \
+      | python3 -c "import sys, json; print('$(basename "$0") $1', json.loads(sys.stdin.read()))" >> "$OUT/shim-diagnostics.log"
+  done
 }
