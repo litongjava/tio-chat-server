@@ -7,6 +7,7 @@ import nexus.io.model.body.RespBodyVo;
 import nexus.io.tio.chat.consts.ChatCode;
 import nexus.io.tio.chat.context.LoginContext;
 import nexus.io.tio.chat.context.LoginSession;
+import nexus.io.tio.chat.service.base.BaseAdminService;
 import nexus.io.tio.chat.service.oauth.TokenService;
 import nexus.io.tio.chat.utils.ChatResp;
 import nexus.io.tio.http.common.HttpRequest;
@@ -31,6 +32,16 @@ public class ChatTokenInterceptor implements HttpRequestInterceptor {
       |^/health$\
       """.strip());
 
+  /**
+   * AI 后台管理接口（原系统归属"管理后台"菜单，跨用户读写），仅管理员可访问
+   */
+  private static final Pattern AI_ADMIN_PATH = Pattern.compile(
+      """
+      ^/api/ai/.+/admin/.+\
+      |^/api/ai/chat/(conversation|message)/(page|delete-by-admin)$\
+      |^/api/ai/(image|video|music|write|mind-map)/(page|update|delete)$\
+      """.strip());
+
   @Override
   public HttpResponse doBeforeHandler(HttpRequest request, RequestLine requestLine, HttpResponse httpResponse)
       throws Exception {
@@ -39,6 +50,11 @@ public class ChatTokenInterceptor implements HttpRequestInterceptor {
     LoginSession session = tokenService.getSession(token);
     if (session != null) {
       LoginContext.set(request, session);
+      String path = requestLine.getPath();
+      if (AI_ADMIN_PATH.matcher(path).matches() && !Aop.get(BaseAdminService.class).isAdmin(session.getUid())) {
+        // 与原网关一致：权限不足返回 406 与 "无此权限：uri"
+        return httpResponse.setJson(ChatResp.toR(RespBodyVo.fail(ChatCode.TOKEN_EXPIRED, "无此权限：" + path), path));
+      }
       return null;
     }
     String path = requestLine.getPath();

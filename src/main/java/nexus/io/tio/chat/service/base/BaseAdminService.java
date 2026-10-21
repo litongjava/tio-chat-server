@@ -28,6 +28,7 @@ import nexus.io.tio.utils.environment.EnvUtils;
  * 后台管理的扩展接口：唯一性校验、树形结构、授权关系、用户状态与日志清理
  */
 public class BaseAdminService {
+  public static final List<String> ADMIN_ROLE_CODES = List.of("SUPER_ADMIN", "TENANT_ADMIN");
 
   /**
    * 判断某列取值是否已被其他记录占用，extraColumn 为同时限定的列
@@ -223,6 +224,18 @@ public class BaseAdminService {
   }
 
   /**
+   * 是否为管理员：拥有 SUPER_ADMIN 或 TENANT_ADMIN 角色（原系统中管理员拥有全部权限 "*"）
+   */
+  public boolean isAdmin(Long employeeId) {
+    for (Kv role : employeeRoles(employeeId)) {
+      if (ADMIN_ROLE_CODES.contains(role.getStr("code"))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * 员工可见的资源编码，管理员角色拥有全部资源
    */
   public List<String> employeeResourceCodes(Long employeeId, Long applicationId) {
@@ -230,7 +243,7 @@ public class BaseAdminService {
     boolean superAdmin = false;
     for (Kv role : employeeRoles(employeeId)) {
       roleIds.add(role.getLong("id"));
-      if ("SUPER_ADMIN".equals(role.getStr("code")) || "TENANT_ADMIN".equals(role.getStr("code"))) {
+      if (ADMIN_ROLE_CODES.contains(role.getStr("code"))) {
         superAdmin = true;
       }
     }

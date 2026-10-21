@@ -26,3 +26,11 @@ login_user() {
 api() { # api <METHOD> <path> <token> [json]
   curl -s -X"$1" "$HOST$2" -H 'Content-Type: application/json' -H "token: $3" ${4:+-d "$4"}
 }
+
+MYSQL="docker exec tio-chat-mysql mysql -uroot -probot_123456# --default-character-set=utf8mb4 -N tio_chat"
+# grant_admin <uid> -> gives the user the TENANT_ADMIN role (the role check uses the im uid as employee id)
+grant_admin() {
+  $MYSQL -e "insert into base_employee_role_rel(id, role_id, employee_id, create_by, create_time, is_del, tenant_id)
+    select $(date +%s%N | cut -c1-18), id, $1, 1, now(), 0, 1 from base_role where code='TENANT_ADMIN'
+    and not exists (select 1 from base_employee_role_rel r where r.employee_id=$1 and r.role_id=base_role.id and r.is_del=0)" 2>/dev/null
+}
