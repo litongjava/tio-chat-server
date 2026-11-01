@@ -15,4 +15,8 @@ mkdir -p "$CLIENT_DIR/public/__shim"
 cp "$HERE/vite.web.config.ts" "$CLIENT_DIR/vite.web.config.ts"
 cd "$CLIENT_DIR"
 export TAURI_ENV_PLATFORM=linux
+# use the client's own vite when dependencies are installed, so a broken global pnpm does not matter
+if [ -x node_modules/.bin/vite ]; then
+  exec node_modules/.bin/vite --config vite.web.config.ts
+fi
 exec pnpm exec vite --config vite.web.config.ts
