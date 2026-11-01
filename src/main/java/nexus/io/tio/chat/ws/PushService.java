@@ -53,6 +53,24 @@ public class PushService {
     publish(Kv.by("node", NODE_ID).set("text", text).set("group", WsSessions.deviceGroup(uid, clientId)));
   }
 
+  /**
+   * 断开某个 token 在所有节点上的 WebSocket 连接（同类设备重复登录时使用）
+   */
+  public void unbindToken(String token) {
+    if (token == null) {
+      return;
+    }
+    unbindLocal(token);
+    publish(Kv.by("node", NODE_ID).set("unbindToken", token));
+  }
+
+  private void unbindLocal(String token) {
+    ServerTioConfig config = TioBootServer.me().getServerTioConfig();
+    if (config != null) {
+      Tio.unbindToken(config, token);
+    }
+  }
+
   private void publish(Kv payload) {
     try {
       Redis.use().publish(CHANNEL, JsonUtils.toJson(payload));
@@ -87,6 +105,11 @@ public class PushService {
         try {
           Kv payload = JsonUtils.parse(message, Kv.class);
           if (NODE_ID.equals(payload.getStr("node"))) {
+            return;
+          }
+          String unbindToken = payload.getStr("unbindToken");
+          if (unbindToken != null) {
+            unbindLocal(unbindToken);
             return;
           }
           Object uids = payload.get("uids");
