@@ -15,7 +15,8 @@
     <lombok-version>1.18.44</lombok-version>
     <fastjson2.version>2.0.52</fastjson2.version>
     <hotswap-classloader.version>1.2.9</hotswap-classloader.version>
-    <tio-boot.version>2.1.8</tio-boot.version>
+    <tio-boot.version>2.1.9</tio-boot.version>
+    <tio-boot-cloud.version>1.0.0</tio-boot-cloud.version>
     <jfinal-aop.version>1.4.0</jfinal-aop.version>
     <java-model.version>1.2.8</java-model.version>
     <java-db.version>1.6.2</java-db.version>
@@ -35,6 +36,11 @@
       <groupId>nexus.io</groupId>
       <artifactId>tio-boot</artifactId>
       <version>${tio-boot.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>nexus.io</groupId>
+      <artifactId>tio-boot-cloud-nacos</artifactId>
+      <version>${tio-boot-cloud.version}</version>
     </dependency>
     <dependency>
       <groupId>nexus.io</groupId>
