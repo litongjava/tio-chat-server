@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>nexus.io</groupId>
+    <artifactId>tio-chat-server-parent</artifactId>
+    <version>1.0.0</version>
+  </parent>
+  <artifactId>tio-chat-gateway</artifactId>
+  <description>网关（luohuo-gateway-server）：按路径把 HTTP、SSE 和 WebSocket 请求转发给各服务</description>
+
+  <properties>
+    <main.class>nexus.io.tio.chat.gateway.GatewayApp</main.class>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>nexus.io</groupId>
+      <artifactId>tio-boot-cloud-gateway</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>nexus.io</groupId>
+      <artifactId>tio-boot-cloud-nacos</artifactId>
+      <version>${tio-boot-cloud.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>nexus.io</groupId>
+      <artifactId>java-model</artifactId>
+      <version>${java-model.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>redis.clients</groupId>
+      <artifactId>jedis</artifactId>
+      <version>4.3.1</version>
+    </dependency>
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+      <version>1.3.14</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>tio-chat-gateway</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

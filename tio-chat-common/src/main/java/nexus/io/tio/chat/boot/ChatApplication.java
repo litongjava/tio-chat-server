@@ -7,7 +7,6 @@ import java.util.TimeZone;
 import com.jfinal.kit.Kv;
 
 import nexus.io.tio.boot.TioApplication;
-import nexus.io.tio.boot.cloud.nacos.TioBootNacos;
 import nexus.io.tio.utils.environment.EnvUtils;
 import nexus.io.tio.utils.environment.Prop;
 import nexus.io.tio.utils.environment.PropUtils;
@@ -22,6 +21,8 @@ import nexus.io.tio.utils.environment.PropUtils;
  *
  * 公共配置在 app.properties（及 app-{env}.properties）中，每个服务的 app.name、server.port
  * 和是否注册 Nacos 作为默认值传入，配置文件、命令行参数和环境变量都可以覆盖。
+ * 设置 nacos.config.data-ids 后，Nacos 中的配置在启动时自动加载，数据库、Redis 等公共配置
+ * 也可以放在 Nacos 中。
  */
 public class ChatApplication {
 
@@ -52,8 +53,6 @@ public class ChatApplication {
 
     EnvUtils.load(args);
     applyDefaults(defaults);
-    // 启用配置中心时先拉取配置，数据库、Redis 等公共配置可以放在 Nacos 中
-    TioBootNacos.loadConfig();
     List<ChatModule> list = Arrays.asList(modules);
     for (ChatModule module : list) {
       module.beforeStart();
