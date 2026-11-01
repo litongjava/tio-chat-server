@@ -1,11 +1,10 @@
 package nexus.io.tio.chat.handler.oauth.ext;
 
+import nexus.io.tio.chat.facade.Facades;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import nexus.io.jfinal.aop.Aop;
-import nexus.io.tio.chat.service.base.BaseExtService;
 import nexus.io.tio.chat.utils.ChatResp;
 import nexus.io.tio.http.common.HttpRequest;
 import nexus.io.tio.http.common.HttpResponse;
@@ -21,6 +20,6 @@ public class FindDictMapByTypeHandler {
         queries.add((Map<String, Object>) item);
       }
     }
-    return ChatResp.ok(Aop.get(BaseExtService.class).dictOptions(queries));
+    return ChatResp.ok(Facades.base().dictOptions(queries));
   }
 }

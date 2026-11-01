@@ -1,5 +1,7 @@
 package nexus.io.tio.chat.service.oauth;
 
+import nexus.io.tio.chat.facade.Facades;
+import nexus.io.tio.chat.facade.ImFacade;
 import com.jfinal.kit.Kv;
 
 import nexus.io.jfinal.aop.Aop;
@@ -8,8 +10,6 @@ import nexus.io.tio.chat.consts.ImConst;
 import nexus.io.tio.chat.context.LoginSession;
 import nexus.io.tio.chat.model.oauth.LoginParam;
 import nexus.io.tio.chat.model.oauth.LoginResult;
-import nexus.io.tio.chat.service.im.BlackService;
-import nexus.io.tio.chat.service.im.ImUserService;
 import nexus.io.tio.chat.utils.AccountUtils;
 import nexus.io.tio.chat.utils.ChatErrors;
 import nexus.io.tio.chat.utils.ParameterValidationUtils;
@@ -62,15 +62,15 @@ public class LoginService {
     Integer systemType = user.getInt("system_type");
     Long uid = userId;
     if (systemType == null || systemType == ImConst.SYSTEM_TYPE_IM) {
-      ImUserService imUserService = Aop.get(ImUserService.class);
-      uid = imUserService.findUidByUserId(userId, tenantId);
+      ImFacade imFacade = Facades.im();
+      uid = imFacade.findUidByUserId(userId, tenantId);
       if (uid == null) {
         throw ChatErrors.of(ChatCode.JWT_USER_INVALID, "IM 用户不存在");
       }
-      if (Aop.get(BlackService.class).isBlack(uid, ip)) {
+      if (imFacade.isBlack(uid, ip)) {
         throw ChatErrors.of("你已被拉黑");
       }
-      imUserService.refreshLoginInfo(uid, ip);
+      imFacade.refreshLoginInfo(uid, ip);
     }
     LoginSession session = LoginSession.builder().uid(uid).userId(userId).tenantId(tenantId).systemType(systemType)
         .deviceType(deviceType).clientId(clientId).build();

@@ -1,5 +1,6 @@
 package nexus.io.tio.chat.service.oauth;
 
+import nexus.io.tio.chat.facade.Facades;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -10,7 +11,6 @@ import nexus.io.db.activerecord.Db;
 import nexus.io.jfinal.aop.Aop;
 import nexus.io.tio.chat.consts.ImConst;
 import nexus.io.tio.chat.model.oauth.LoginResult;
-import nexus.io.tio.chat.service.im.ImUserService;
 import nexus.io.tio.chat.utils.ChatErrors;
 import nexus.io.tio.chat.utils.HttpClients;
 import nexus.io.tio.utils.environment.EnvUtils;
@@ -104,7 +104,7 @@ public class ThirdPartyAuthService {
           Kv u = defUserService.create(ImConst.SYSTEM_TYPE_IM, mail, null, login == null ? openId : login,
               name == null ? login : name, avatar, 1, 1L);
           Db.update("update def_user set " + column + "=? where id=?", openId, u.getLong("id"));
-          long uid = Aop.get(ImUserService.class).register(u.getLong("id"), u.getStr("username"), u.getStr("nick_name"), mail,
+          long uid = Facades.im().register(u.getLong("id"), u.getStr("username"), u.getStr("nick_name"), mail,
               u.getStr("avatar"), 1, 1L);
           Db.update("update im_user set " + imColumn + "=? where id=?", openId, uid);
           return u;

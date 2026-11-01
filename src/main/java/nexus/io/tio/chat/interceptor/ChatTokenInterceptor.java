@@ -1,5 +1,6 @@
 package nexus.io.tio.chat.interceptor;
 
+import nexus.io.tio.chat.facade.Facades;
 import java.util.regex.Pattern;
 
 import nexus.io.jfinal.aop.Aop;
@@ -7,7 +8,6 @@ import nexus.io.model.body.RespBodyVo;
 import nexus.io.tio.chat.consts.ChatCode;
 import nexus.io.tio.chat.context.LoginContext;
 import nexus.io.tio.chat.context.LoginSession;
-import nexus.io.tio.chat.service.base.BaseAdminService;
 import nexus.io.tio.chat.service.oauth.TokenService;
 import nexus.io.tio.chat.utils.ChatResp;
 import nexus.io.tio.http.common.HttpRequest;
@@ -53,7 +53,7 @@ public class ChatTokenInterceptor implements HttpRequestInterceptor {
     if (session != null) {
       LoginContext.set(request, session);
       String path = requestLine.getPath();
-      if (AI_ADMIN_PATH.matcher(path).matches() && !Aop.get(BaseAdminService.class).isAdmin(session.getUid())) {
+      if (AI_ADMIN_PATH.matcher(path).matches() && !Facades.base().isAdmin(session.getUid())) {
         // 与原网关一致：权限不足返回 406 与 "无此权限：uri"
         return httpResponse.setJson(ChatResp.toR(RespBodyVo.fail(ChatCode.TOKEN_EXPIRED, "无此权限：" + path), path));
       }

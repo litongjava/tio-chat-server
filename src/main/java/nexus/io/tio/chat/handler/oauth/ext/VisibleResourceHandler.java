@@ -1,8 +1,7 @@
 package nexus.io.tio.chat.handler.oauth.ext;
 
-import nexus.io.jfinal.aop.Aop;
+import nexus.io.tio.chat.facade.Facades;
 import nexus.io.tio.chat.context.LoginContext;
-import nexus.io.tio.chat.service.base.BaseExtService;
 import nexus.io.tio.chat.utils.ChatResp;
 import nexus.io.tio.chat.utils.ParameterValidationUtils;
 import nexus.io.tio.http.common.HttpRequest;
@@ -13,6 +12,6 @@ public class VisibleResourceHandler {
   public HttpResponse handle(HttpRequest request) {
     Long employeeId = ParameterValidationUtils.optionalLong(request, "employeeId");
     Long applicationId = ParameterValidationUtils.optionalLong(request, "applicationId");
-    return ChatResp.ok(Aop.get(BaseExtService.class).visibleResource(employeeId == null ? LoginContext.uid() : employeeId, applicationId));
+    return ChatResp.ok(Facades.base().visibleResource(employeeId == null ? LoginContext.uid() : employeeId, applicationId));
   }
 }

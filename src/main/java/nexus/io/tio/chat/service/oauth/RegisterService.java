@@ -1,5 +1,6 @@
 package nexus.io.tio.chat.service.oauth;
 
+import nexus.io.tio.chat.facade.Facades;
 import com.jfinal.kit.Kv;
 
 import nexus.io.db.activerecord.Db;
@@ -8,7 +9,6 @@ import nexus.io.tio.chat.consts.ChatCode;
 import nexus.io.tio.chat.consts.ImConst;
 import nexus.io.tio.chat.model.oauth.PasswordUpdateReq;
 import nexus.io.tio.chat.model.oauth.RegisterParam;
-import nexus.io.tio.chat.service.im.ImUserService;
 import nexus.io.tio.chat.utils.ChatErrors;
 import nexus.io.tio.chat.utils.ParameterValidationUtils;
 
@@ -24,19 +24,18 @@ public class RegisterService {
         param.getCode());
 
     DefUserService defUserService = Aop.get(DefUserService.class);
-    ImUserService imUserService = Aop.get(ImUserService.class);
     if (defUserService.existsEmail(param.getEmail())) {
       throw ChatErrors.of(ChatCode.OPERATION_EX, "账号已存在！");
     }
     int systemType = param.getSystemType() == null ? ImConst.SYSTEM_TYPE_IM : param.getSystemType();
-    if (systemType == ImConst.SYSTEM_TYPE_IM && imUserService.existsEmail(param.getEmail())) {
+    if (systemType == ImConst.SYSTEM_TYPE_IM && Facades.im().existsEmail(param.getEmail())) {
       throw ChatErrors.of(ChatCode.OPERATION_EX, "该邮箱已被其他账号绑定");
     }
     Db.txResult(() -> {
       Kv user = defUserService.create(systemType, param.getEmail(), null, param.getPassword(), param.getNickName(),
           param.getAvatar(), param.getSex(), DEFAULT_TENANT_ID);
       if (systemType == ImConst.SYSTEM_TYPE_IM) {
-        imUserService.register(user.getLong("id"), user.getStr("username"), user.getStr("nick_name"),
+        Facades.im().register(user.getLong("id"), user.getStr("username"), user.getStr("nick_name"),
             param.getEmail(), param.getAvatar(), param.getSex(), DEFAULT_TENANT_ID);
       }
       return user;
@@ -59,7 +58,7 @@ public class RegisterService {
       Kv user = defUserService.create(systemType, null, param.getMobile(), param.getPassword(), param.getMobile(),
           param.getAvatar(), param.getSex(), DEFAULT_TENANT_ID);
       if (systemType == ImConst.SYSTEM_TYPE_IM) {
-        Aop.get(ImUserService.class).register(user.getLong("id"), user.getStr("username"), user.getStr("nick_name"),
+        Facades.im().register(user.getLong("id"), user.getStr("username"), user.getStr("nick_name"),
             null, param.getAvatar(), param.getSex(), DEFAULT_TENANT_ID);
       }
       return user;
@@ -87,7 +86,7 @@ public class RegisterService {
   }
 
   public boolean checkEmail(String email) {
-    return Aop.get(DefUserService.class).existsEmail(email) || Aop.get(ImUserService.class).existsEmail(email);
+    return Aop.get(DefUserService.class).existsEmail(email) || Facades.im().existsEmail(email);
   }
 
   private String keyOrDefault(String key, String defaultValue) {

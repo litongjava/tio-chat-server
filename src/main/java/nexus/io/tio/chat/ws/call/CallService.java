@@ -1,5 +1,6 @@
 package nexus.io.tio.chat.ws.call;
 
+import nexus.io.tio.chat.facade.Facades;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -20,7 +21,6 @@ import nexus.io.tio.chat.consts.WsRespType;
 import nexus.io.tio.chat.model.im.chat.ChatMessageReq;
 import nexus.io.tio.chat.model.ws.WsBaseResp;
 import nexus.io.tio.chat.service.im.RoomQueryService;
-import nexus.io.tio.chat.service.im.chat.MessageService;
 import nexus.io.tio.chat.utils.ChatErrors;
 import nexus.io.tio.chat.ws.PushService;
 
@@ -311,6 +311,6 @@ public class CallService {
     }
     ChatMessageReq req = ChatMessageReq.of(roomId, video ? MsgType.VIDEO_CALL : MsgType.AUDIO_CALL, body);
     req.setSkip(true);
-    Aop.get(MessageService.class).send(req, creator);
+    Facades.im().sendMessage(req, creator);
   }
 }
