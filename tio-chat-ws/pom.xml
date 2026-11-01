@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>nexus.io</groupId>
+    <artifactId>tio-chat-server-parent</artifactId>
+    <version>1.0.0</version>
+  </parent>
+  <artifactId>tio-chat-ws</artifactId>
+  <description>WebSocket 连接、在线状态、推送与音视频信令（luohuo-ws-server）</description>
+
+  <properties>
+    <main.class>nexus.io.tio.chat.ws.WsServerApp</main.class>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>nexus.io</groupId>
+      <artifactId>tio-chat-common</artifactId>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>tio-chat-ws</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

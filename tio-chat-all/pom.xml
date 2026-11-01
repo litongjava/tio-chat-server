@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>nexus.io</groupId>
+    <artifactId>tio-chat-server-parent</artifactId>
+    <version>1.0.0</version>
+  </parent>
+  <artifactId>tio-chat-all</artifactId>
+  <description>所有模块打包成一个服务运行</description>
+
+  <properties>
+    <main.class>nexus.io.tio.chat.ChatServerApp</main.class>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>nexus.io</groupId>
+      <artifactId>tio-chat-common</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>nexus.io</groupId>
+      <artifactId>tio-chat-oauth</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>nexus.io</groupId>
+      <artifactId>tio-chat-base</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>nexus.io</groupId>
+      <artifactId>tio-chat-system</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>nexus.io</groupId>
+      <artifactId>tio-chat-im</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>nexus.io</groupId>
+      <artifactId>tio-chat-ai</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>nexus.io</groupId>
+      <artifactId>tio-chat-ws</artifactId>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>tio-chat-server</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>
