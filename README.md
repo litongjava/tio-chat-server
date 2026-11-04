@@ -1,6 +1,11 @@
 # tio-chat-server
 
-基于 [tio-boot](https://github.com/litongjava/tio-boot) 的即时通讯服务端，单个进程提供：
+基于 [tio-boot](https://github.com/litongjava/tio-boot) 与 [tio-boot-cloud](https://github.com/litongjava/tio-boot-cloud) 的即时通讯服务端。按原系统的微服务划分为 oauth、base、system、im、ai、ws 六个模块和一个网关，支持两种运行方式：
+
+- **所有模块一个服务**：`tio-chat-all` 一个进程提供全部接口，部署简单，不需要 Nacos。
+- **微服务**：每个模块单独运行并注册到 Nacos，客户端通过 `tio-chat-gateway` 访问，各服务可以独立扩容和发布。
+
+两种方式使用同一份代码、提供相同的接口，全部接口冒烟测试和客户端端到端测试在两种方式下都通过（`scripts/run-both-modes.sh`）。提供的功能：
 
 - 账号：密码 / 验证码 / 手机号登录、邮箱与手机号注册、扫码登录、Gitee / GitHub / GitCode 第三方登录、token 刷新与同设备互踢
 - IM：好友、好友申请、通知、会话、单聊与群聊消息（文本、图片、文件、语音、视频、表情、位置、合并转发、公告、撤回、表情回应、已读回执）
@@ -38,9 +43,13 @@ docker exec -i tio-chat-mysql mysql -uroot -p'robot_123456#' tio_chat < im.sql
 
 ## 配置
 
-`src/main/resources/app.properties` 为公共配置，`app-dev.properties` 为开发环境配置，也可以用环境变量或 `.env` 覆盖。
+`tio-chat-common/src/main/resources/app.properties` 为所有服务共用的配置，`app-dev.properties` 为开发环境配置，也可以用命令行参数、环境变量或 `.env` 覆盖。网关的配置在 `tio-chat-gateway/src/main/resources/app.properties`。
 
-- `server.port`：服务端口，默认 18760
+- `server.port`：服务端口。所有模块一个服务时默认 18760；单独运行时 oauth 18773、base 18764、system 19877、im 18778、ai 18877、ws 19778，网关 18760
+- `nacos.server-addr` / `nacos.namespace` / `nacos.username` / `nacos.password`：Nacos，微服务方式使用
+- `nacos.discovery.enabled`：是否注册到 Nacos，单独运行的服务默认 `true`，所有模块一个服务时默认 `false`
+- `nacos.config.data-ids`：从 Nacos 加载的配置，例如 `common.yml`，数据库、Redis 等公共配置可以放在这里
+- `chat.internal.secret`：服务间内部调用的密钥，生产环境请修改
 - `jdbc.url` / `jdbc.user` / `jdbc.pswd`：MySQL 连接
 - `redis.host` / `redis.port` / `redis.password`：Redis 连接
 - `server.heartbeat.timeout`：WebSocket 心跳超时（毫秒），默认 30000
@@ -129,8 +138,13 @@ select <新编号>, id, <用户 uid>, 1, now(), 0, 1 from base_role where code='
 ## 构建与启动
 
 ```shell
-mvn clean package -DskipTests -Dgpg.skip -Pproduction
-java -jar target/tio-chat-server.jar
+mvn clean package -DskipTests -Dgpg.skip
+```
+
+### 所有模块一个服务
+
+```shell
+java -jar tio-chat-all/target/tio-chat-server.jar
 ```
 
 或使用 Docker：
@@ -140,7 +154,39 @@ docker build -t tio-chat-server .
 docker run -d -p 18760:18760 -e JDBC_URL=... -e REDIS_HOST=... tio-chat-server
 ```
 
-客户端配置：HTTP 地址 `http://<host>:18760/api`，WebSocket 地址 `ws://<host>:18760/api/ws/ws`。
+### 微服务
+
+先按 tio-boot 文档“微服务”一章启动 Nacos 并创建命名空间 `hula-dev`，然后：
+
+```shell
+scripts/services.sh start    # 启动 6 个服务和网关，日志在 logs/services
+scripts/services.sh status
+scripts/services.sh stop
+```
+
+也可以分别启动。除 ws 外每个服务可以运行多个实例（换端口即可），网关按服务名负载均衡：
+
+```shell
+java -jar tio-chat-oauth/target/tio-chat-oauth.jar
+java -jar tio-chat-im/target/tio-chat-im.jar
+java -jar tio-chat-im/target/tio-chat-im.jar --server.port=18779
+java -jar tio-chat-gateway/target/tio-chat-gateway.jar
+```
+
+各服务注册到 Nacos 的服务名与原系统相同：`luohuo-oauth-server`、`luohuo-base-server`、`luohuo-system-server`、`luohuo-im-server`、`luohuo-ai-server`、`luohuo-ws-server`，网关为 `luohuo-gateway-server`。网关路由：
+
+- `/api/oauth/**` → luohuo-oauth-server
+- `/api/im/**` → luohuo-im-server
+- `/api/base/**` → luohuo-base-server
+- `/api/system/**` → luohuo-system-server
+- `/api/ai/**` → luohuo-ai-server（含 SSE 流式接口）
+- `/api/ws/**`、`/ws/**` → luohuo-ws-server（WebSocket）
+
+网关还会解析 Token，把 `userId`、`uid`、`tenantId`、`systemType` 写入请求头传给后端，并统一处理跨域。
+
+模块之间的调用（如 oauth 注册 IM 用户、ws 发送通话记录消息）通过 `BaseFacade`、`ImFacade` 完成：所有模块一个服务时直接调用本地实现，分开运行时按服务名调用对方的内部接口 `/internal/facade/*`，该接口需要 `chat.internal.secret`，网关不转发。WebSocket 推送与踢下线通过 Redis 频道送达所有 ws 实例。
+
+客户端配置：HTTP 地址 `http://<host>:18760/api`，WebSocket 地址 `ws://<host>:18760/api/ws/ws`，两种运行方式相同。
 
 ## 接口分组
 
@@ -156,7 +202,7 @@ docker run -d -p 18760:18760 -e JDBC_URL=... -e REDIS_HOST=... tio-chat-server
 
 ## 测试
 
-`scripts` 目录下是接口冒烟测试脚本，需要先启动服务、MySQL 与 Redis：
+`scripts` 目录下是接口冒烟测试脚本，需要先启动服务（任一种运行方式，地址都是 18760）、MySQL 与 Redis：
 
 ```shell
 scripts/smoke-oauth.sh      # 登录、注册、刷新、扫码登录
@@ -169,6 +215,7 @@ scripts/smoke-base-ext.sh   # 后台扩展接口
 scripts/smoke-ai.sh         # AI 对话（配合 MockLlm.java 模拟模型）
 scripts/smoke-ai-admin.sh   # AI 后台管理接口的管理员校验
 scripts/smoke-history.sh    # 聊天记录检索、文件消息列表
+scripts/smoke-portal.sh     # 回显查询、权限、服务监控、数据源、微信门户、消息重推、徽章、拉黑
 scripts/setup-deepseek.sh   # 登记 DeepSeek 模型（见“AI 模型”一节）
 ```
 
@@ -176,21 +223,34 @@ scripts/setup-deepseek.sh   # 登记 DeepSeek 模型（见“AI 模型”一节�
 
 原桌面客户端的前端也可以直接在浏览器中对接本服务，并用 dsb 做端到端测试，见 [docs/client-test.md](docs/client-test.md)。
 
-## 暂未实现
+## 与原后端的差异
 
-- 代码生成器、工作流（activiti）模块
-- 微信公众号门户接口
-- 后台的服务器管理与数据源连接测试
+用 `scripts/audit-routes.py` 可以对比原后端声明的接口和这里注册的路由。
+
+暂未实现：
+
+- 代码生成器（`defGen*` 共 33 个接口）
+- 站内消息之外的消息渠道（阿里云、百度云、创蓝短信，腾讯邮件）和定时发送（原后端依赖 xxl-job）
+
+有意不同：
+
+- 黑名单管理、服务监控、数据源配置和 `/api/im/user/register`、`bindOAuth` 仅管理员可用。原后端对 IM 账号没有限制这些接口，普通用户可以借此拉黑他人或绑定他人邮箱的第三方账号。
+- 消息未确认时的重推由 im 服务内部定时完成，im 进程重启时尚未到期的重推会丢失，客户端重新连接后仍可通过消息同步取到；原后端使用 RocketMQ 延迟消息。
+- 音视频通话状态保存在 ws 进程内存中，同一通话的双方需要连接到同一个 ws 实例，目前请只运行一个 ws 实例。其他服务可以运行多个实例。
+- 没有移植 `/gate/doc.html`、网关首页、`/fallback` 和测试接口 `/anyone/base/test`。
 
 ## 目录结构
 
 ```
-src/main/java/nexus/io/tio/chat
-├── config        启动配置、路由注册、异常处理、WebSocket 配置
-├── handler       每个接口一个 Handler
-├── service       业务逻辑（oauth / im / system / base / ai）
-├── model         请求与响应实体
-├── ws            WebSocket 处理器、推送、在线状态、通话信令
-├── interceptor   Token 校验
-└── utils         响应包装、参数校验、数据库工具
+tio-chat-common    公共部分：实体、上下文、工具、Token 校验、推送与在线状态、通用增删改查、模块启动框架、跨模块调用
+tio-chat-oauth     登录、注册、token、验证码、扫码与第三方登录        OauthServerApp
+tio-chat-base      后台管理：租户、用户、组织、角色资源、字典参数、日志  BaseServerApp
+tio-chat-system    系统配置、对象存储、地图与翻译                      SystemServerApp
+tio-chat-im        好友、会话、消息、群聊、朋友圈与表情                ImServerApp
+tio-chat-ai        AI 模型、对话、写作、思维导图、知识库与绘图          AiServerApp
+tio-chat-ws        WebSocket 连接、在线状态、推送与音视频信令          WsServerApp
+tio-chat-all       所有模块一个服务                                    ChatServerApp
+tio-chat-gateway   网关                                                GatewayApp
 ```
+
+每个业务模块内部按 `handler`（每个接口一个 Handler）、`service`、`config/route`（路由注册）分包，模块入口是实现 `ChatModule` 的 `XxxModule`。
