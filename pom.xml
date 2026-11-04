@@ -16,6 +16,7 @@
     <module>tio-chat-im</module>
     <module>tio-chat-ai</module>
     <module>tio-chat-ws</module>
+    <module>tio-chat-generator</module>
     <module>tio-chat-all</module>
     <module>tio-chat-gateway</module>
   </modules>
@@ -92,6 +93,11 @@
       <dependency>
         <groupId>nexus.io</groupId>
         <artifactId>tio-chat-system</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>nexus.io</groupId>
+        <artifactId>tio-chat-generator</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>

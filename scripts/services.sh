@@ -7,7 +7,7 @@
 cd "$(dirname "$0")/.."
 JAVA=${JAVA:-java}
 LOG=${LOG_DIR:-logs/services}
-SERVICES="oauth base system im ai ws"
+SERVICES="oauth base system im ai ws generator"
 mkdir -p "$LOG"
 
 start_one() { # start_one <name> <jar> [args...]
@@ -31,7 +31,7 @@ wait_port() { # wait_port <port>
 case "$1" in
   start)
     for s in $SERVICES; do start_one "$s" "tio-chat-$s/target/tio-chat-$s.jar" $SERVICE_ARGS; done
-    for p in 18773 18764 19877 18778 18877 19778; do wait_port $p; done
+    for p in 18773 18764 19877 18778 18877 19778 18780; do wait_port $p; done
     start_one gateway tio-chat-gateway/target/tio-chat-gateway.jar
     wait_port 18760
     # give the gateway a moment to receive the instance lists from Nacos

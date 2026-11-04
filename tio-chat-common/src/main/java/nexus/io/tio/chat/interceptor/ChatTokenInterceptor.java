@@ -45,6 +45,7 @@ public class ChatTokenInterceptor implements HttpRequestInterceptor {
       |^/api/ai/chat/message/(page|delete-by-admin)$\
       |^/api/ai/(image|video|music|write|mind-map)/(page|update|delete)$\
       |^/api/im/defServer$\
+      |^/api/generator/.+$\
       |^/api/im/defDatasourceConfig(/.*)?$\
       |^/api/base/defInterface(Property)?(/.*)?$\
       |^/api/base/defMsgTemplate(/.*)?$\

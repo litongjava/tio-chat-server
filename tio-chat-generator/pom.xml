@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>nexus.io</groupId>
+    <artifactId>tio-chat-server-parent</artifactId>
+    <version>1.0.0</version>
+  </parent>
+  <artifactId>tio-chat-generator</artifactId>
+  <description>在线代码生成（luohuo-generator-server）</description>
+
+  <properties>
+    <main.class>nexus.io.tio.chat.generator.GeneratorServerApp</main.class>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>nexus.io</groupId>
+      <artifactId>tio-chat-common</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.freemarker</groupId>
+      <artifactId>freemarker</artifactId>
+      <version>2.3.31</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>tio-chat-generator</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

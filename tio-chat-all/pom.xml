@@ -33,6 +33,10 @@
     </dependency>
     <dependency>
       <groupId>nexus.io</groupId>
+      <artifactId>tio-chat-generator</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>nexus.io</groupId>
       <artifactId>tio-chat-im</artifactId>
     </dependency>
     <dependency>
