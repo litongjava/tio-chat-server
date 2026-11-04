@@ -30,6 +30,11 @@
       <version>${java-model.version}</version>
     </dependency>
     <dependency>
+      <groupId>nexus.io</groupId>
+      <artifactId>jfinal-aop</artifactId>
+      <version>${jfinal-aop.version}</version>
+    </dependency>
+    <dependency>
       <groupId>redis.clients</groupId>
       <artifactId>jedis</artifactId>
       <version>4.3.1</version>
