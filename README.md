@@ -45,7 +45,7 @@ docker exec -i tio-chat-mysql mysql -uroot -p'robot_123456#' tio_chat < im.sql
 
 `tio-chat-common/src/main/resources/app.properties` 为所有服务共用的配置，`app-dev.properties` 为开发环境配置，也可以用命令行参数、环境变量或 `.env` 覆盖。网关的配置在 `tio-chat-gateway/src/main/resources/app.properties`。
 
-- `server.port`：服务端口。所有模块一个服务时默认 18760；单独运行时 oauth 18773、base 18764、system 19877、im 18778、ai 18877、ws 19778，网关 18760
+- `server.port`：服务端口。所有模块一个服务时默认 18760；单独运行时 oauth 18773、base 18764、system 19877、generator 18780、im 18778、ai 18877、ws 19778，网关 18760
 - `nacos.server-addr` / `nacos.namespace` / `nacos.username` / `nacos.password`：Nacos，微服务方式使用
 - `nacos.discovery.enabled`：是否注册到 Nacos，单独运行的服务默认 `true`，所有模块一个服务时默认 `false`
 - `nacos.config.data-ids`：从 Nacos 加载的配置，例如 `common.yml`，数据库、Redis 等公共配置可以放在这里
@@ -173,12 +173,13 @@ java -jar tio-chat-im/target/tio-chat-im.jar --server.port=18779
 java -jar tio-chat-gateway/target/tio-chat-gateway.jar
 ```
 
-各服务注册到 Nacos 的服务名与原系统相同：`luohuo-oauth-server`、`luohuo-base-server`、`luohuo-system-server`、`luohuo-im-server`、`luohuo-ai-server`、`luohuo-ws-server`，网关为 `luohuo-gateway-server`。网关路由：
+各服务注册到 Nacos 的服务名与原系统相同：`luohuo-oauth-server`、`luohuo-base-server`、`luohuo-system-server`、`luohuo-generator-server`、`luohuo-im-server`、`luohuo-ai-server`、`luohuo-ws-server`，网关为 `luohuo-gateway-server`。网关路由：
 
 - `/api/oauth/**` → luohuo-oauth-server
 - `/api/im/**` → luohuo-im-server
 - `/api/base/**` → luohuo-base-server
 - `/api/system/**` → luohuo-system-server
+- `/api/generator/**` → luohuo-generator-server
 - `/api/ai/**` → luohuo-ai-server（含 SSE 流式接口）
 - `/api/ws/**`、`/ws/**` → luohuo-ws-server（WebSocket）
 
@@ -228,18 +229,19 @@ scripts/setup-deepseek.sh   # 登记 DeepSeek 模型（见“AI 模型”一节�
 
 用 `scripts/audit-routes.py` 可以对比原后端声明的接口和这里注册的路由。
 
-暂未实现：
-
-- 代码生成器（`defGen*` 共 33 个接口）
-- 脚本方式（`exec_mode=02`）的消息接口和模板脚本：原后端用 Groovy 执行依赖其内部类的脚本，这里会记录为发送失败
-
 有意不同：
 
-- 黑名单管理、服务监控、数据源配置和 `/api/im/user/register`、`bindOAuth` 仅管理员可用。原后端对 IM 账号没有限制这些接口，普通用户可以借此拉黑他人或绑定他人邮箱的第三方账号。
-- 定时消息由 base 服务轮询发送（`chat.msg.schedule.interval-seconds`，默认 30 秒），用 Redis 锁保证多实例不重复，不依赖 xxl-job。
-- 消息未确认时的重推由 im 服务内部定时完成，im 进程重启时尚未到期的重推会丢失，客户端重新连接后仍可通过消息同步取到；原后端使用 RocketMQ 延迟消息。
-- 音视频通话状态保存在 ws 进程内存中，同一通话的双方需要连接到同一个 ws 实例，目前请只运行一个 ws 实例。其他服务可以运行多个实例。
-- 没有移植 `/gate/doc.html`、网关首页、`/fallback` 和测试接口 `/anyone/base/test`。
+- 黑名单管理、服务监控、数据源配置、消息接口与消息模板、代码生成和 `/api/im/user/register`、`bindOAuth` 仅管理员可用。消息接口和模板可以保存在服务端执行的 Groovy 脚本，代码生成可以读数据库结构、写服务器文件，都不能开放给普通用户。
+- 代码生成的后端模板生成 tio-boot 代码（实体、Service、每个接口一个 Handler、路由配置），不生成 MyBatis 的 Mapper、Manager 和 VO；生成的项目是 tio-boot 项目。前端模板与原后端相同。因此 `getFieldTemplate`、`getDefFileOverrideStrategy` 返回的后端模板项不同。
+- 代码生成的数据源只支持 MySQL，`dsId` 为空或 0 时读取当前服务的数据库。
+- 再次导入已经导入过的表会覆盖原来的配置，原后端会多出一份。
+- 生成代码时任何一个模板出错都会中止并返回错误，原后端只记日志，压缩包中缺少文件。
+- `/api/generator/defGenProject/anno/getProperties` 只返回 Java 版本、系统和编码，原后端返回全部系统属性。
+- 定时消息由 base 服务轮询发送（`chat.msg.schedule.interval-seconds`，默认 30 秒），用 Redis 锁保证多实例只发送一次。
+- 消息未确认时的重推和通话定时器保存在 Redis 中，进程崩溃后由其他实例继续执行。ws 和 im 都可以运行多个实例。
+- `/api/doc.html` 是路由总览页。
+
+原后端自带的 `TEST` 消息接口脚本引用了不存在的类，无法编译，这一点两边相同：发送时这条消息记为失败，不影响其他消息。
 
 ## 目录结构
 
@@ -251,6 +253,7 @@ tio-chat-system    系统配置、对象存储、地图与翻译                
 tio-chat-im        好友、会话、消息、群聊、朋友圈与表情                ImServerApp
 tio-chat-ai        AI 模型、对话、写作、思维导图、知识库与绘图          AiServerApp
 tio-chat-ws        WebSocket 连接、在线状态、推送与音视频信令          WsServerApp
+tio-chat-generator 在线代码生成                                      GeneratorServerApp
 tio-chat-all       所有模块一个服务                                    ChatServerApp
 tio-chat-gateway   网关                                                GatewayApp
 ```
