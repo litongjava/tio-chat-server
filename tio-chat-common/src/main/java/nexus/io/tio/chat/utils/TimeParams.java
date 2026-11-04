@@ -23,7 +23,9 @@ public class TimeParams {
       if (text.contains("T")) {
         return LocalDateTime.parse(text);
       }
-      return LocalDateTime.parse(text, DEFAULT);
+      // java.sql.Timestamp.toString() ends with fractional seconds
+      int fraction = text.indexOf('.');
+      return LocalDateTime.parse(fraction < 0 ? text : text.substring(0, fraction), DEFAULT);
     } catch (Exception e) {
       return defaultValue;
     }

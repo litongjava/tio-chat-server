@@ -97,4 +97,8 @@ public class DefUserService {
         """;
     Db.update(sql, id);
   }
+
+  public void resetPasswordError(long id) {
+    Db.update("update def_user set password_error_num=0, password_error_last_time=null where id=?", id);
+  }
 }

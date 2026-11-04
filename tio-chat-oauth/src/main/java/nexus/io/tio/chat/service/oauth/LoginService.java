@@ -1,5 +1,7 @@
 package nexus.io.tio.chat.service.oauth;
 
+import java.time.format.DateTimeFormatter;
+import java.time.LocalDateTime;
 import nexus.io.tio.chat.facade.Facades;
 import nexus.io.tio.chat.facade.ImFacade;
 import com.jfinal.kit.Kv;
@@ -12,12 +14,18 @@ import nexus.io.tio.chat.model.oauth.LoginParam;
 import nexus.io.tio.chat.model.oauth.LoginResult;
 import nexus.io.tio.chat.utils.AccountUtils;
 import nexus.io.tio.chat.utils.ChatErrors;
+import nexus.io.tio.utils.environment.EnvUtils;
+import nexus.io.tio.chat.utils.Values;
+import nexus.io.tio.chat.utils.TimeParams;
 import nexus.io.tio.chat.utils.ParameterValidationUtils;
 
 /**
  * 登录、刷新与登出
  */
 public class LoginService {
+  private static final int DEFAULT_MAX_PASSWORD_ERROR = 10;
+  private static final int DEFAULT_LOCK_MINUTES = 15;
+  private static final DateTimeFormatter LOCK_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
   public LoginResult login(LoginParam param, String authorization, String ip) {
     String grantType = param.getGrantType() == null ? "PASSWORD" : param.getGrantType().toUpperCase();
@@ -150,12 +158,32 @@ public class LoginService {
     if (user == null) {
       throw ChatErrors.of(ChatCode.JWT_USER_INVALID, "用户名或密码错误");
     }
+    int max = EnvUtils.getInt("chat.password.max-error-num", DEFAULT_MAX_PASSWORD_ERROR);
+    Integer errorNum = Values.toInt(user.get("password_error_num"));
+    int errors = errorNum == null ? 0 : errorNum;
+    if (max > 0 && errors >= max) {
+      LocalDateTime lockedUntil = lockedUntil(user);
+      if (lockedUntil.isAfter(LocalDateTime.now())) {
+        String msg = "密码连续输错次数已超过最大限制：" + max + "次,用户将被锁定至: " + LOCK_TIME.format(lockedUntil);
+        Aop.get(LoginLogService.class).record(null, user, null, null, LoginLogService.PASSWORD_ERROR, msg);
+        throw ChatErrors.of(ChatCode.OPERATION_EX, msg);
+      }
+      // 锁定已到期，重新计数
+      Aop.get(DefUserService.class).resetPasswordError(user.getLong("id"));
+      errors = 0;
+    }
     String hashed = AccountUtils.hashPassword(password, user.getStr("salt"));
     if (!hashed.equalsIgnoreCase(user.getStr("password"))) {
       Aop.get(DefUserService.class).passwordError(user.getLong("id"));
       Aop.get(LoginLogService.class).record(null, user, null, null, LoginLogService.PASSWORD_ERROR, "账号密码错误");
-      throw ChatErrors.of(ChatCode.OPERATION_EX, "用户名或密码错误");
+      throw ChatErrors.of(ChatCode.OPERATION_EX, "用户名或密码错误" + (errors + 1) + "次，连续输错" + max + "次您将被锁定！");
     }
+  }
+
+  private LocalDateTime lockedUntil(Kv user) {
+    Object last = user.get("password_error_last_time");
+    LocalDateTime lastError = last == null ? LocalDateTime.now() : TimeParams.parse(last.toString(), LocalDateTime.now());
+    return lastError.plusMinutes(EnvUtils.getInt("chat.password.lock-minutes", DEFAULT_LOCK_MINUTES));
   }
 
   private void checkState(Kv user) {
