@@ -1,5 +1,14 @@
 package nexus.io.tio.chat.config.route;
 
+import nexus.io.jfinal.aop.Aop;
+import nexus.io.tio.chat.handler.im.system.DatasourceTestConnectHandler;
+import nexus.io.tio.chat.handler.im.system.ServerInfoHandler;
+import nexus.io.tio.chat.handler.im.system.UserBindOauthHandler;
+import nexus.io.tio.chat.handler.im.system.UserRegisterHandler;
+import nexus.io.tio.chat.handler.im.wx.WxPortalCallbackHandler;
+import nexus.io.tio.chat.handler.im.wx.WxPortalMessageHandler;
+import nexus.io.tio.chat.handler.im.wx.WxPortalVerifyHandler;
+import nexus.io.tio.chat.service.base.crud.CrudDef;
 import nexus.io.tio.chat.handler.im.misc.AdminActiveUsersHandler;
 import nexus.io.tio.chat.handler.im.misc.AdminHomeStatsHandler;
 import nexus.io.tio.chat.handler.im.misc.AdminLoginRankHandler;
@@ -19,6 +28,15 @@ public class ImMiscRouteConfig {
   private static final String P = "/api/im";
 
   public void config(HttpRequestRouter r) {
+    r.get(P + "/wx/portal/public", new WxPortalVerifyHandler()::handle);
+    r.post(P + "/wx/portal/public", new WxPortalMessageHandler()::handle);
+    r.get(P + "/wx/portal/public/callBack", new WxPortalCallbackHandler()::handle);
+    r.post(P + "/user/register", new UserRegisterHandler()::handle);
+    r.post(P + "/user/bindOAuth", new UserBindOauthHandler()::handle);
+    r.get(P + "/defServer", new ServerInfoHandler()::handle);
+    r.post(P + "/defDatasourceConfig/testConnect", new DatasourceTestConnectHandler()::handle);
+    Aop.get(CrudRouteRegistrar.class).register(r, P, CrudDef.of("/defDatasourceConfig", "def_datasource_config")
+        .like("name", "username", "url", "driver_class_name"));
     r.get(P + "/user/emoji/list", new EmojiListHandler()::handle);
     r.post(P + "/user/emoji", new EmojiAddHandler()::handle);
     r.delete(P + "/user/emoji", new EmojiDeleteHandler()::handle);

@@ -3,7 +3,6 @@ package nexus.io.tio.chat.facade;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
-import java.util.List;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
@@ -51,9 +50,5 @@ public class FacadeInvoker {
       }
     }
     throw new IllegalArgumentException("unknown facade method " + facadeType.getSimpleName() + "." + name);
-  }
-
-  public static List<Object> args(Object... values) {
-    return List.of(values);
   }
 }

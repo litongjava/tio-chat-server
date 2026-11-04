@@ -64,6 +64,42 @@ public class ImUserService {
     return uid;
   }
 
+  /**
+   * POST /user/register：oauth 服务创建 IM 用户。邮箱已被占用时返回 false
+   */
+  public boolean registerFromOauth(Kv param) {
+    String email = param.getStr("email");
+    if (email != null && !email.isEmpty() && existsEmail(email)) {
+      return false;
+    }
+    long tenantId = param.getLong("tenantId") == null ? 1L : param.getLong("tenantId");
+    long uid = register(param.getLong("userId"), param.getStr("account"), param.getStr("name"), email,
+        param.getStr("avatar"), param.getInt("sex"), tenantId);
+    Db.update("update im_user set user_type=coalesce(?, user_type), gitee_id=?, github_id=?, gitcode_id=? where id=?",
+        param.getInt("userType"), param.getStr("giteeId"), param.getStr("githubId"), param.getStr("gitcodeId"), uid);
+    return true;
+  }
+
+  /**
+   * POST /user/bindOAuth：把第三方账号绑定到邮箱对应的 IM 用户。用户不存在时返回 false
+   */
+  public boolean bindOAuth(Kv param) {
+    Long uid = Db.queryLong("select id from im_user where email=? and is_del=0 limit 1", param.getStr("email"));
+    if (uid == null) {
+      return false;
+    }
+    bindColumn(uid, "gitee_id", param.getStr("giteeId"));
+    bindColumn(uid, "github_id", param.getStr("githubId"));
+    bindColumn(uid, "gitcode_id", param.getStr("gitcodeId"));
+    return true;
+  }
+
+  private void bindColumn(long uid, String column, String value) {
+    if (value != null && !value.trim().isEmpty()) {
+      Db.update("update im_user set " + column + "=? where id=?", value, uid);
+    }
+  }
+
   public void refreshLoginInfo(long uid, String ip) {
     String ipInfo = "{\"createIp\":\"" + ip + "\",\"updateIp\":\"" + ip + "\"}";
     Db.update("update im_user set last_opt_time=now(3), ip_info=coalesce(ip_info, ?) where id=?", ipInfo, uid);
