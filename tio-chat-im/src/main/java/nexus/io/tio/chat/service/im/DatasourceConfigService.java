@@ -33,7 +33,7 @@ public class DatasourceConfigService {
         return connection != null;
       }
     } catch (ClassNotFoundException | SQLException e) {
-      log.error("test datasource {} failed: {}", url, e.getMessage());
+      log.warn("test datasource {} failed: {}", url, e.getMessage());
       throw ChatErrors.of("创建测试链接错误 " + url);
     }
   }

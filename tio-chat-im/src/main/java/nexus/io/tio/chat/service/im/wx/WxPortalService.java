@@ -113,6 +113,10 @@ public class WxPortalService {
 
   /** 扫码：已完善资料的用户不需要授权，其他用户收到授权链接 */
   private WxMpXmlOutMessage scan(WxMpXmlMessage message, WxMpService wx) {
+    // a plain follow has no scene: nothing to log in to
+    if (isBlank(message.getEventKey())) {
+      return null;
+    }
     String openId = message.getFromUser();
     int loginCode = Integer.parseInt(message.getEventKey().replace(EVENT_KEY_PREFIX, ""));
     Kv user = Db.findFirstMap("select id, avatar, user_type from im_user where open_id=? and is_del=0 limit 1", openId);
