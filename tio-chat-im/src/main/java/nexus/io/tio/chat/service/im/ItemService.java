@@ -14,7 +14,9 @@ import nexus.io.tio.utils.snowflake.SnowflakeIdUtils;
 public class ItemService {
   public static final long REG_TOP10_BADGE = 3L;
   public static final long REG_TOP100_BADGE = 4L;
+  public static final long LIKE_BADGE = 2L;
   public static final int IDEMPOTENT_UID = 1;
+  public static final int IDEMPOTENT_MSG_ID = 2;
 
   public void acquire(long uid, long itemId, int idempotentType, String businessId) {
     String idempotent = String.format("%d_%d_%s", itemId, idempotentType, businessId);
@@ -32,6 +34,10 @@ public class ItemService {
     Row row = Row.by("id", SnowflakeIdUtils.id()).set("uid", uid).set("item_id", itemId).set("status", 0)
         .set("idempotent", idempotent).set("create_by", uid).set("tenant_id", 1L);
     DbRows.save("im_user_backpack", row);
+    if (badge) {
+      // 第一枚徽章自动佩戴
+      Db.update("update im_user set item_id=? where id=? and item_id is null", itemId, uid);
+    }
   }
 
   /**

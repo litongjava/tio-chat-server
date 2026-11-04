@@ -4,18 +4,25 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import com.jfinal.kit.Kv;
 
 import nexus.io.db.activerecord.Db;
 import nexus.io.db.activerecord.Row;
+import nexus.io.jfinal.aop.Aop;
+import nexus.io.tio.chat.consts.MsgType;
+import nexus.io.tio.chat.consts.WsRespType;
 import nexus.io.tio.chat.model.common.PageBaseResp;
 import nexus.io.tio.chat.model.im.user.BlackAddReq;
 import nexus.io.tio.chat.model.im.user.BlackEditReq;
 import nexus.io.tio.chat.model.im.user.BlackPageResp;
+import nexus.io.tio.chat.model.ws.WsBaseResp;
+import nexus.io.tio.chat.service.oauth.TokenService;
 import nexus.io.tio.chat.utils.ChatErrors;
 import nexus.io.tio.chat.utils.DbRows;
 import nexus.io.tio.chat.utils.Values;
+import nexus.io.tio.chat.ws.PushService;
 import nexus.io.tio.utils.snowflake.SnowflakeIdUtils;
 
 /**
@@ -35,11 +42,35 @@ public class BlackService {
         target);
     if (id != null) {
       Db.update("update im_black set deadline=?, update_by=? where id=?", deadline, operator, id);
+    } else {
+      Row row = Row.by("id", SnowflakeIdUtils.id()).set("type", req.getType()).set("target", target)
+          .set("deadline", deadline).set("create_by", operator).set("tenant_id", 1L);
+      DbRows.save("im_black", row);
+    }
+    if (Objects.equals(req.getType(), TYPE_UID)) {
+      onUserBlacked(target);
+    }
+  }
+
+  /**
+   * 拉黑用户：历史消息失效，通知本人账号失效并注销登录
+   */
+  private void onUserBlacked(String target) {
+    Long uid = Values.toLong(target);
+    if (uid == null) {
       return;
     }
-    Row row = Row.by("id", SnowflakeIdUtils.id()).set("type", req.getType()).set("target", target)
-        .set("deadline", deadline).set("create_by", operator).set("tenant_id", 1L);
-    DbRows.save("im_black", row);
+    Kv user = Db.findFirstMap("select id, user_id from im_user where id=? and is_del=0", uid);
+    if (user == null) {
+      return;
+    }
+    Db.update("update im_message set status=? where from_uid=?", MsgType.STATUS_DELETE, uid);
+    Aop.get(PushService.class).push(WsBaseResp.of(WsRespType.INVALID_USER, Kv.by("uid", String.valueOf(uid))), uid);
+    TokenService tokenService = Aop.get(TokenService.class);
+    PushService pushService = Aop.get(PushService.class);
+    for (String token : tokenService.kickoutAll(user.getLong("user_id"))) {
+      pushService.unbindToken(token);
+    }
   }
 
   public void edit(BlackEditReq req, long operator) {

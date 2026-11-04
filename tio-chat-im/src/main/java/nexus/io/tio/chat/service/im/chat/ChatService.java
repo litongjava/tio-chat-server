@@ -24,6 +24,7 @@ import nexus.io.tio.chat.model.common.CursorPageBaseResp;
 import nexus.io.tio.chat.model.im.chat.ChatMessageResp;
 import nexus.io.tio.chat.model.im.chat.MessageRecord;
 import nexus.io.tio.chat.model.ws.WsBaseResp;
+import nexus.io.tio.chat.service.im.ItemService;
 import nexus.io.tio.chat.service.im.RoomQueryService;
 import nexus.io.tio.chat.utils.ChatErrors;
 import nexus.io.tio.chat.utils.DbRows;
@@ -36,6 +37,7 @@ import nexus.io.tio.utils.snowflake.SnowflakeIdUtils;
  * 消息查询、同步、标记、撤回与已读
  */
 public class ChatService {
+  private static final long LIKE_BADGE_THRESHOLD = 10;
 
   public CursorPageBaseResp<ChatMessageResp> page(long roomId, String cursor, int pageSize, boolean skip, long uid) {
     MessageService messageService = Aop.get(MessageService.class);
@@ -167,6 +169,12 @@ public class ChatService {
       Db.update("update im_message_mark set status=? where id=?", status, old.getLong("id"));
     }
     Long count = Db.queryLong("select count(*) from im_message_mark where msg_id=? and type=? and status=0", msgId, markType);
+    // 文本消息获赞达到阈值，发送者获得爆赞徽章
+    if (actType == 1 && markType == MessageService.MARK_LIKE && Objects.equals(message.getType(), MsgType.TEXT)
+        && count >= LIKE_BADGE_THRESHOLD) {
+      Aop.get(ItemService.class).acquire(message.getFromUid(), ItemService.LIKE_BADGE, ItemService.IDEMPOTENT_MSG_ID,
+          String.valueOf(msgId));
+    }
     Kv item = Kv.by("uid", String.valueOf(uid)).set("msgId", String.valueOf(msgId)).set("markType", markType)
         .set("markCount", count.intValue()).set("actType", actType);
     Aop.get(PushService.class).push(WsBaseResp.of(WsRespType.MSG_MARK_ITEM, Kv.by("markList", List.of(item))),
