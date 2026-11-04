@@ -47,8 +47,7 @@ public class ChatTokenInterceptor implements HttpRequestInterceptor {
       |^/api/im/defServer$\
       |^/api/generator/.+$\
       |^/api/im/defDatasourceConfig(/.*)?$\
-      |^/api/base/defInterface(Property)?(/.*)?$\
-      |^/api/base/defMsgTemplate(/.*)?$\
+      |^/api/base/(?!(.*/)?(anyone|anyUser|anyTenant)/).+$\
       |^/api/im/user/(register|bindOAuth)$\
       |^/api/im/user/black(/page|/edit|/remove)?$\
       """.strip());

@@ -23,6 +23,16 @@ for req in "POST /api/base/defInterface" "POST /api/base/defInterface/page" "POS
   api ${req% *} "${req#* }" "$T" '{}' | json "d['code'], d['msg']"
 done
 
+echo "== the base admin APIs are admin only"
+api PUT /api/base/defUser "$T" "{\"id\":\"$UA\",\"nickName\":\"x\"}" | json "d['code']"
+api POST /api/base/defUser/page "$T" '{"size":1}' | json "d['code']"
+api POST /api/base/baseRole "$T" '{"code":"x","name":"x"}' | json "d['code']"
+api POST /api/base/baseEmployee/employeeRole "$T" '{}' | json "d['code']"
+api POST /api/base/defUser/page "$TA" '{"size":1}' | json "d['code']"
+echo "an ordinary user keeps the anyone APIs:"
+api POST /api/base/anyone/extendNotice/myNotice "$T" '{"size":1}' | json "d['code']"
+api POST /api/base/baseLoginLog/anyone/page "$T" '{"size":1}' | json "d['code']"
+
 echo "== groovy interface and template script"
 MYSQLI=${MYSQL/docker exec/docker exec -i}
 IID=$(date +%s%N | cut -c1-18)

@@ -2,6 +2,7 @@
 # Admin extension endpoints and oauth dictionary/resource endpoints.
 cd "$(dirname "$0")"; source ./lib.sh; set -e
 read T U < <(register_user "adm$(date +%s)@example.com")
+grant_admin "$U"
 api POST /api/base/defResource/tree "$T" '{}' | json "d['code'], len(d['data']), 'children' in d['data'][0]"
 api POST /api/base/baseOrg/tree "$T" '{}' | json "d['code'], len(d['data'])"
 api GET "/api/base/defDict/check?key=GLOBAL_SEX" "$T" | json "d['code'], d['data']"

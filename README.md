@@ -231,7 +231,7 @@ scripts/setup-deepseek.sh   # 登记 DeepSeek 模型（见“AI 模型”一节�
 
 有意不同：
 
-- 黑名单管理、服务监控、数据源配置、消息接口与消息模板、代码生成和 `/api/im/user/register`、`bindOAuth` 仅管理员可用。消息接口和模板可以保存在服务端执行的 Groovy 脚本，代码生成可以读数据库结构、写服务器文件，都不能开放给普通用户。
+- 黑名单管理、服务监控、数据源配置、代码生成和 `/api/im/user/register`、`bindOAuth` 仅管理员可用。`/api/base` 下除路径中带 `anyone`、`anyUser`、`anyTenant` 的接口外也都仅管理员可用，其中用户、角色、消息接口和模板等操作不能开放给普通用户；后台权限目前只区分是否管理员，没有按角色细分。
 - 代码生成的后端模板生成 tio-boot 代码（实体、Service、每个接口一个 Handler、路由配置），不生成 MyBatis 的 Mapper、Manager 和 VO；生成的项目是 tio-boot 项目。前端模板与原后端相同。因此 `getFieldTemplate`、`getDefFileOverrideStrategy` 返回的后端模板项不同。
 - 代码生成的数据源只支持 MySQL，`dsId` 为空或 0 时读取当前服务的数据库。
 - 再次导入已经导入过的表会覆盖原来的配置，原后端会多出一份。
