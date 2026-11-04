@@ -50,6 +50,18 @@
 
   <dependencyManagement>
     <dependencies>
+      <!-- the Baidu SMS SDK brings httpclient 4.3, the WeChat SDK needs 4.5: with every module in one jar the
+           older one would win and the WeChat portal fail at runtime -->
+      <dependency>
+        <groupId>org.apache.httpcomponents</groupId>
+        <artifactId>httpclient</artifactId>
+        <version>4.5.13</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.httpcomponents</groupId>
+        <artifactId>httpcore</artifactId>
+        <version>4.4.14</version>
+      </dependency>
       <!-- logback 1.3 needs slf4j 2; jedis brings slf4j 1.7 -->
       <dependency>
         <groupId>org.slf4j</groupId>
