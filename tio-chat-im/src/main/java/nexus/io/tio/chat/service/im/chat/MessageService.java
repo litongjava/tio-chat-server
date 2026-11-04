@@ -1,9 +1,6 @@
 package nexus.io.tio.chat.service.im.chat;
 
 import java.time.LocalDateTime;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -28,6 +25,7 @@ import nexus.io.tio.chat.model.im.chat.ChatMessageReq;
 import nexus.io.tio.chat.model.im.chat.ChatMessageResp;
 import nexus.io.tio.chat.model.im.chat.MessageRecord;
 import nexus.io.tio.chat.model.ws.WsBaseResp;
+import nexus.io.tio.chat.service.common.DelayedTaskService;
 import nexus.io.tio.chat.service.im.RoomQueryService;
 import nexus.io.tio.chat.service.im.chat.msg.MsgHandler;
 import nexus.io.tio.chat.service.im.chat.msg.MsgHandlers;
@@ -51,11 +49,7 @@ public class MessageService {
   public static final int MARK_TYPE_MAX = 14;
   private static final long PASSAGE_EXPIRE_SECONDS = 3600;
   private static final long DEFAULT_RETRY_DELAY_SECONDS = 3;
-  private static final ScheduledExecutorService RETRY_SCHEDULER = Executors.newSingleThreadScheduledExecutor(runnable -> {
-    Thread thread = new Thread(runnable, "chat-push-retry");
-    thread.setDaemon(true);
-    return thread;
-  });
+  public static final String TASK_PUSH_RETRY = "push-retry";
 
   @SuppressWarnings("unchecked")
   public long send(ChatMessageReq req, long uid) {
@@ -139,24 +133,27 @@ public class MessageService {
       jedis.sadd(key, msgId);
       return jedis.expire(key, PASSAGE_EXPIRE_SECONDS);
     });
-    WsBaseResp resp = WsBaseResp.of(WsRespType.RECEIVE_MESSAGE, getMsgResp(message, member));
-    PushService pushService = Aop.get(PushService.class);
-    pushService.push(resp, member);
+    Aop.get(PushService.class).push(WsBaseResp.of(WsRespType.RECEIVE_MESSAGE, getMsgResp(message, member)), member);
     long delay = EnvUtils.getLong("chat.push.retry.delay-seconds", DEFAULT_RETRY_DELAY_SECONDS);
-    RETRY_SCHEDULER.schedule(() -> retryIfUnacked(key, msgId, resp, member, message), delay, TimeUnit.SECONDS);
+    Aop.get(DelayedTaskService.class).schedule(TASK_PUSH_RETRY, member + ":" + msgId, member + ":" + msgId, delay * 1000);
   }
 
-  private void retryIfUnacked(String key, String msgId, WsBaseResp resp, long member, MessageRecord message) {
-    try {
-      if (Boolean.TRUE.equals(Redis.call(jedis -> jedis.sismember(key, msgId)))) {
-        log.info("message {} not acked by {}, pushing again", msgId, member);
-        Aop.get(PushService.class).push(resp, member);
-        Db.update("update im_contact set last_msg_id=?, active_time=? where room_id=? and uid=?", message.getId(),
-            message.getCreateTime(), message.getRoomId(), message.getFromUid());
-      }
-    } catch (Exception e) {
-      log.error("retry push failed, id={}", msgId, e);
+  /** 到期仍未确认的消息再推送一次，任务保存在 Redis 中，im 服务重启后继续执行 */
+  public void retryIfUnacked(String payload) {
+    int split = payload.indexOf(':');
+    long member = Long.parseLong(payload.substring(0, split));
+    String msgId = payload.substring(split + 1);
+    if (!Boolean.TRUE.equals(Redis.call(jedis -> jedis.sismember(RedisKeys.PASSAGE_MSG + member, msgId)))) {
+      return;
     }
+    MessageRecord message = getById(Long.parseLong(msgId));
+    if (message == null) {
+      return;
+    }
+    log.info("message {} not acked by {}, pushing again", msgId, member);
+    Aop.get(PushService.class).push(WsBaseResp.of(WsRespType.RECEIVE_MESSAGE, getMsgResp(message, member)), member);
+    Db.update("update im_contact set last_msg_id=?, active_time=? where room_id=? and uid=?", message.getId(),
+        message.getCreateTime(), message.getRoomId(), message.getFromUid());
   }
 
   public void checkRoomAccess(boolean isSend, boolean isTemp, long roomId, long uid) {

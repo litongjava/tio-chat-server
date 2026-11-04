@@ -1,5 +1,6 @@
 package nexus.io.tio.chat.im;
 
+import nexus.io.jfinal.aop.Aop;
 import nexus.io.tio.chat.boot.ChatModule;
 import nexus.io.tio.chat.config.route.ImChatRouteConfig;
 import nexus.io.tio.chat.config.route.ImFeedRouteConfig;
@@ -10,7 +11,9 @@ import nexus.io.tio.chat.config.route.ImUserRouteConfig;
 import nexus.io.tio.chat.facade.Facades;
 import nexus.io.tio.chat.facade.ImFacade;
 import nexus.io.tio.chat.handler.InternalFacadeHandler;
+import nexus.io.tio.chat.service.common.DelayedTaskService;
 import nexus.io.tio.chat.service.im.ImFacadeLocal;
+import nexus.io.tio.chat.service.im.chat.MessageService;
 import nexus.io.tio.http.server.router.HttpRequestRouter;
 
 /**
@@ -27,6 +30,7 @@ public class ImModule implements ChatModule {
 
   @Override
   public void config(HttpRequestRouter router) throws Exception {
+    Aop.get(DelayedTaskService.class).register(MessageService.TASK_PUSH_RETRY, Aop.get(MessageService.class)::retryIfUnacked);
     ImFacadeLocal local = new ImFacadeLocal();
     Facades.setIm(local);
     router.post(Facades.IM_PATH, new InternalFacadeHandler(ImFacade.class, local)::handle);
