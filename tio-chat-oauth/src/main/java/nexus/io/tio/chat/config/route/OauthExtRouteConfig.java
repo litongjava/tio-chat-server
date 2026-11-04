@@ -1,5 +1,9 @@
 package nexus.io.tio.chat.config.route;
 
+import nexus.io.tio.chat.handler.oauth.echo.EchoDictFindByIdsHandler;
+import nexus.io.tio.chat.handler.oauth.echo.EchoOrgFindByIdsHandler;
+import nexus.io.tio.chat.handler.oauth.echo.EchoPositionFindByIdsHandler;
+import nexus.io.tio.chat.handler.oauth.echo.EchoUserFindByIdsHandler;
 import nexus.io.tio.chat.handler.oauth.ext.AuthorizeUrlHandler;
 import nexus.io.tio.chat.handler.oauth.ext.CheckEmployeeHaveApplicationHandler;
 import nexus.io.tio.chat.handler.oauth.ext.EchoFindByIdsHandler;
@@ -23,6 +27,10 @@ public class OauthExtRouteConfig {
   private static final String P = "/api/oauth";
 
   public void config(HttpRequestRouter r) {
+    r.post("/api/oauth/echo/user/findByIds", new EchoUserFindByIdsHandler()::handle);
+    r.post("/api/oauth/echo/position/findByIds", new EchoPositionFindByIdsHandler()::handle);
+    r.post("/api/oauth/echo/org/findByIds", new EchoOrgFindByIdsHandler()::handle);
+    r.post("/api/oauth/echo/dict/findByIds", new EchoDictFindByIdsHandler()::handle);
     r.get(P + "/anyTenant/{provider}/authorize-url", new AuthorizeUrlHandler()::handle);
     r.get(P + "/anyTenant/{provider}/callback", new ThirdPartyCallbackHandler()::handle);
     r.post(P + "/anyTenant/enums/findEnumMapByType", new FindEnumMapByTypeHandler()::handle);
