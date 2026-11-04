@@ -8,6 +8,7 @@ import nexus.io.tio.chat.handler.base.AreaDownloadHandler;
 import nexus.io.tio.chat.handler.base.AreaLazyListHandler;
 import nexus.io.tio.chat.handler.base.AreaTreeHandler;
 import nexus.io.tio.chat.handler.base.AvailableApplicationDataScopeListHandler;
+import nexus.io.tio.chat.handler.base.AnyoneTestHandler;
 import nexus.io.tio.chat.handler.base.AvailableApplicationResourceListHandler;
 import nexus.io.tio.chat.handler.base.BaseLoginLogAnyonePageHandler;
 import nexus.io.tio.chat.handler.base.BaseLoginLogClearHandler;
@@ -81,6 +82,7 @@ public class BaseExtRouteConfig {
   private static final String P = "/api/base";
 
   public void config(HttpRequestRouter r) {
+    r.get(P + "/anyone/base/test", new AnyoneTestHandler()::handle);
     r.get(P + "/defApplication/check", new ApplicationCheckHandler()::handle);
     r.get(P + "/defApplication/findApplicationResourceList", new ApplicationResourceListHandler()::handle);
     r.get(P + "/defApplication/findAvailableApplicationResourceList", new AvailableApplicationResourceListHandler()::handle);
