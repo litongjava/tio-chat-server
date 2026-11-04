@@ -1,9 +1,12 @@
 package nexus.io.tio.chat.ws;
 
+import nexus.io.jfinal.aop.Aop;
 import nexus.io.tio.boot.server.TioBootServer;
 import nexus.io.tio.chat.boot.ChatModule;
 import nexus.io.tio.chat.config.WebSocketConfig;
+import nexus.io.tio.chat.service.common.DelayedTaskService;
 import nexus.io.tio.chat.ws.ChatConnectionListener;
+import nexus.io.tio.chat.ws.call.CallService;
 import nexus.io.tio.http.server.router.HttpRequestRouter;
 
 /**
@@ -26,5 +29,6 @@ public class WsModule implements ChatModule {
   @Override
   public void config(HttpRequestRouter router) throws Exception {
     new WebSocketConfig().config();
+    Aop.get(DelayedTaskService.class).register(CallService.TASK_CALL, Aop.get(CallService.class)::onDelayed);
   }
 }

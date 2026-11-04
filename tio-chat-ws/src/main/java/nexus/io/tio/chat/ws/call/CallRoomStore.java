@@ -31,8 +31,18 @@ public class CallRoomStore {
     return closed == null || "1".equals(closed);
   }
 
-  public void markClosed(long roomId) {
-    Redis.call(jedis -> jedis.hset(META + roomId, "closed", "1"));
+  /** @return true when this call closed the room, false when it was closed already */
+  public boolean tryClose(long roomId) {
+    if (isClosed(roomId)) {
+      return false;
+    }
+    // "closed" exists from the moment the room opens, so the claim needs its own field
+    Long claimed = Redis.call(jedis -> jedis.hsetnx(META + roomId, "closeClaim", "1"));
+    if (!Long.valueOf(1).equals(claimed)) {
+      return false;
+    }
+    set(roomId, "closed", "1");
+    return true;
   }
 
   public Long creator(long roomId) {

@@ -1,15 +1,11 @@
 package nexus.io.tio.chat.ws.call;
 
 import nexus.io.tio.chat.facade.Facades;
+import nexus.io.tio.chat.service.common.DelayedTaskService;
+import nexus.io.tio.utils.json.JsonUtils;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 
 import com.jfinal.kit.Kv;
 
@@ -34,8 +30,8 @@ public class CallService {
   public static final int ACCEPT_ACCEPTED = 1;
   public static final int ACCEPT_HANGUP = 2;
 
-  private static final ScheduledExecutorService SCHEDULER = Executors.newScheduledThreadPool(2);
-  private static final Map<Long, ScheduledFuture<?>> TASKS = new ConcurrentHashMap<>();
+  public static final String TASK_CALL = "call";
+  private static final long CALL_TIMEOUT_SECONDS = 30;
 
   private CallRoomStore store() {
     return Aop.get(CallRoomStore.class);
@@ -247,37 +243,47 @@ public class CallService {
   }
 
   private void scheduleCleanup(long roomId, long seconds) {
-    cancelTask(roomId);
-    TASKS.put(roomId, SCHEDULER.schedule(() -> {
-      if (!store().isClosed(roomId) && store().members(roomId).isEmpty()) {
-        cleanRoom(roomId, null, "TIMEOUT");
-      }
-    }, seconds, TimeUnit.SECONDS));
+    delayed().schedule(TASK_CALL, String.valueOf(roomId), JsonUtils.toJson(Kv.by("kind", "cleanup").set("roomId", roomId)), seconds * 1000);
   }
 
   private void scheduleCallTimeout(long caller, Long receiver, long roomId) {
-    cancelTask(roomId);
-    TASKS.put(roomId, SCHEDULER.schedule(() -> {
-      if (store().isClosed(roomId)) {
-        return;
-      }
-      push().push(WsBaseResp.of(WsRespType.TIMEOUT, Kv.by("targetUid", receiver == null ? null : String.valueOf(receiver))), caller);
-      cleanRoom(roomId, null, "TIMEOUT");
-    }, 30, TimeUnit.SECONDS));
+    String payload = JsonUtils.toJson(Kv.by("kind", "timeout").set("roomId", roomId).set("caller", caller).set("receiver", receiver));
+    delayed().schedule(TASK_CALL, String.valueOf(roomId), payload, CALL_TIMEOUT_SECONDS * 1000);
   }
 
   private void cancelTask(Long roomId) {
-    ScheduledFuture<?> task = TASKS.remove(roomId);
-    if (task != null) {
-      task.cancel(false);
+    delayed().cancel(TASK_CALL, String.valueOf(roomId));
+  }
+
+  /** 通话的定时任务保存在 Redis 中，任一 ws 实例都可以执行 */
+  public void onDelayed(String payload) {
+    Kv task = JsonUtils.parse(payload, Kv.class);
+    long roomId = task.getLong("roomId");
+    if (store().isClosed(roomId)) {
+      return;
     }
+    if ("cleanup".equals(task.getStr("kind"))) {
+      if (store().members(roomId).isEmpty()) {
+        cleanRoom(roomId, null, "TIMEOUT");
+      }
+      return;
+    }
+    Long receiver = task.getLong("receiver");
+    push().push(WsBaseResp.of(WsRespType.TIMEOUT, Kv.by("targetUid", receiver == null ? null : String.valueOf(receiver))),
+        task.getLong("caller"));
+    cleanRoom(roomId, null, "TIMEOUT");
+  }
+
+  private DelayedTaskService delayed() {
+    return Aop.get(DelayedTaskService.class);
   }
 
   /**
    * 结束通话：生成通话记录消息并通知房间内成员
    */
-  public synchronized void cleanRoom(long roomId, Long uid, String state) {
-    if (store().isClosed(roomId)) {
+  public void cleanRoom(long roomId, Long uid, String state) {
+    // 多个实例可能同时结束同一个通话，只有抢到关闭标记的实例生成通话记录
+    if (!store().tryClose(roomId)) {
       return;
     }
     cancelTask(roomId);
@@ -289,7 +295,6 @@ public class CallService {
     } catch (Exception e) {
       log.error("send call record failed, room={}", roomId, e);
     }
-    store().markClosed(roomId);
     List<Long> members = store().members(roomId);
     store().clearMembers(roomId);
     if (!members.isEmpty()) {
