@@ -4,7 +4,7 @@
 # MODEL selects the AI model for client-ai-e2e, default mock-e2e (see setup-mock-llm.sh).
 cd "$(dirname "$0")/.."
 export MODEL=${MODEL:-mock-e2e} JAVA=${JAVA:-java}
-ARGS="--wx.mp.app-id=wxtest --wx.mp.token=smoketoken"
+ARGS="--wx.mp.app-id=wxtest --wx.mp.token=smoketoken --chat.msg.schedule.interval-seconds=2"
 free_port() {
   for p in $(ss -ltnp "( sport = :$1 )" | grep -o 'pid=[0-9]*' | cut -d= -f2); do kill "$p"; done
 }

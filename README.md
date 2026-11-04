@@ -216,6 +216,7 @@ scripts/smoke-ai.sh         # AI 对话（配合 MockLlm.java 模拟模型）
 scripts/smoke-ai-admin.sh   # AI 后台管理接口的管理员校验
 scripts/smoke-history.sh    # 聊天记录检索、文件消息列表
 scripts/smoke-portal.sh     # 回显查询、权限、服务监控、数据源、微信门户、消息重推、徽章、拉黑
+scripts/smoke-msg.sh        # 消息中心：站内通知、邮件、短信渠道、接口日志、定时发送
 scripts/setup-deepseek.sh   # 登记 DeepSeek 模型（见“AI 模型”一节）
 ```
 
@@ -230,11 +231,12 @@ scripts/setup-deepseek.sh   # 登记 DeepSeek 模型（见“AI 模型”一节�
 暂未实现：
 
 - 代码生成器（`defGen*` 共 33 个接口）
-- 站内消息之外的消息渠道（阿里云、百度云、创蓝短信，腾讯邮件）和定时发送（原后端依赖 xxl-job）
+- 脚本方式（`exec_mode=02`）的消息接口和模板脚本：原后端用 Groovy 执行依赖其内部类的脚本，这里会记录为发送失败
 
 有意不同：
 
 - 黑名单管理、服务监控、数据源配置和 `/api/im/user/register`、`bindOAuth` 仅管理员可用。原后端对 IM 账号没有限制这些接口，普通用户可以借此拉黑他人或绑定他人邮箱的第三方账号。
+- 定时消息由 base 服务轮询发送（`chat.msg.schedule.interval-seconds`，默认 30 秒），用 Redis 锁保证多实例不重复，不依赖 xxl-job。
 - 消息未确认时的重推由 im 服务内部定时完成，im 进程重启时尚未到期的重推会丢失，客户端重新连接后仍可通过消息同步取到；原后端使用 RocketMQ 延迟消息。
 - 音视频通话状态保存在 ws 进程内存中，同一通话的双方需要连接到同一个 ws 实例，目前请只运行一个 ws 实例。其他服务可以运行多个实例。
 - 没有移植 `/gate/doc.html`、网关首页、`/fallback` 和测试接口 `/anyone/base/test`。

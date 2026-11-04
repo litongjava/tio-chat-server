@@ -16,6 +16,7 @@ import nexus.io.tio.chat.context.LoginContext;
 import nexus.io.tio.chat.model.common.IPageResp;
 import nexus.io.tio.chat.service.base.crud.CrudDef;
 import nexus.io.tio.chat.service.base.crud.CrudService;
+import nexus.io.tio.chat.service.base.msg.MsgSendService;
 import nexus.io.tio.chat.utils.ChatErrors;
 import nexus.io.tio.chat.utils.DbRows;
 import nexus.io.tio.chat.utils.Values;
@@ -153,88 +154,23 @@ public class BaseExtService {
   }
 
   /**
-   * 按模板发送：替换模板中的 ${key}，为每个接收人生成一条通知
+   * 按模板通过配置的渠道发送
    */
-  @SuppressWarnings("unchecked")
   public boolean sendByTemplate(Map<String, Object> data) {
-    String code = (String) data.get("code");
-    Kv template = Db.findFirstMap("select * from def_msg_template where code=? and is_del=0", code);
-    ChatErrors.require(template != null, "模板不存在");
-    String title = template.getStr("title");
-    String content = template.getStr("content");
-    if (data.get("paramList") instanceof Collection) {
-      for (Object param : (Collection<Object>) data.get("paramList")) {
-        if (param instanceof Map) {
-          Map<String, Object> kv = (Map<String, Object>) param;
-          String key = String.valueOf(kv.get("key"));
-          String value = String.valueOf(kv.get("value"));
-          title = title == null ? null : title.replace("${" + key + "}", value);
-          content = content == null ? null : content.replace("${" + key + "}", value);
-        }
-      }
-    }
-    List<String> recipients = new ArrayList<>();
-    if (data.get("recipientList") instanceof Collection) {
-      for (Object r : (Collection<Object>) data.get("recipientList")) {
-        recipients.add(r instanceof Map ? String.valueOf(((Map<String, Object>) r).get("recipient")) : String.valueOf(r));
-      }
-    }
-    long msgId = saveMsg(template.getStr("type"), title, content, template.getStr("remind_mode"), code, data);
-    saveNotices(msgId, title, content, template.getStr("remind_mode"), recipients, data.get("author"));
-    return true;
+    return Aop.get(MsgSendService.class).sendByTemplate(data);
   }
 
   /**
-   * 发布站内信，draft=true 只保存草稿
+   * 发布站内信，draft=true 只保存草稿，sendTime 到期后才发送
    */
-  @SuppressWarnings("unchecked")
   public boolean publish(Map<String, Object> data) {
-    String title = (String) data.get("title");
-    String content = (String) data.get("content");
-    String remindMode = data.get("remindMode") == null ? "02" : data.get("remindMode").toString();
-    Long id = Values.toLong(data.get("id"));
-    long msgId;
-    if (id == null) {
-      msgId = saveMsg("04", title, content, remindMode, null, data);
-    } else {
-      msgId = id;
-      Db.update("update extend_msg set title=?, content=?, remind_mode=? where id=?", title, content, remindMode, id);
-    }
-    if (!Values.isTrue(data.get("draft"))) {
-      List<String> recipients = new ArrayList<>();
-      if (data.get("recipientList") instanceof Collection) {
-        for (Object r : (Collection<Object>) data.get("recipientList")) {
-          recipients.add(String.valueOf(r));
-        }
-      }
-      saveNotices(msgId, title, content, remindMode, recipients, data.get("author"));
-      Db.update("update extend_msg set status='02' where id=?", msgId);
-    }
-    return true;
-  }
-
-  private long saveMsg(String type, String title, String content, String remindMode, String templateCode, Map<String, Object> data) {
-    long id = SnowflakeIdUtils.id();
-    DbRows.save("extend_msg", Row.by("id", id).set("template_code", templateCode).set("type", type).set("status", "01")
-        .set("channel", "APP").set("title", title).set("content", content).set("remind_mode", remindMode)
-        .set("biz_id", data.get("bizId")).set("biz_type", data.get("bizType")).set("author", data.get("author"))
-        .set("create_by", operator()));
-    return id;
-  }
-
-  private void saveNotices(long msgId, String title, String content, String remindMode, List<String> recipients, Object author) {
-    for (String recipient : recipients) {
-      Long recipientId = Values.toLong(recipient);
-      DbRows.save("extend_notice", Row.by("msg_id", msgId).set("recipient_id", recipientId).set("remind_mode", remindMode)
-          .set("title", title).set("content", content).set("author", author).set("is_read", 0).set("is_handle", 0)
-          .set("auto_read", 1).set("created_time", LocalDateTime.now()).set("created_by", operator()));
-    }
+    return Aop.get(MsgSendService.class).publish(data);
   }
 
   public Kv msgDetail(Long id) {
     Kv vo = crud().get(MSG, id);
     if (vo != null) {
-      vo.set("recipientList", Db.query("select recipient_id from extend_notice where msg_id=? and is_del=0", id));
+      vo.set("recipientList", Db.query("select recipient from extend_msg_recipient where msg_id=? and is_del=0", id));
     }
     return vo;
   }

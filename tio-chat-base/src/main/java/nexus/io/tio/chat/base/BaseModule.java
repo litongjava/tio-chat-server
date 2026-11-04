@@ -1,11 +1,13 @@
 package nexus.io.tio.chat.base;
 
+import nexus.io.jfinal.aop.Aop;
 import nexus.io.tio.chat.boot.ChatModule;
 import nexus.io.tio.chat.config.route.BaseRouteConfig;
 import nexus.io.tio.chat.facade.BaseFacade;
 import nexus.io.tio.chat.facade.Facades;
 import nexus.io.tio.chat.handler.InternalFacadeHandler;
 import nexus.io.tio.chat.service.base.BaseFacadeLocal;
+import nexus.io.tio.chat.service.base.msg.MsgSendService;
 import nexus.io.tio.http.server.router.HttpRequestRouter;
 
 /**
@@ -26,5 +28,6 @@ public class BaseModule implements ChatModule {
     Facades.setBase(local);
     router.post(Facades.BASE_PATH, new InternalFacadeHandler(BaseFacade.class, local)::handle);
     new BaseRouteConfig().config(router);
+    Aop.get(MsgSendService.class).startScheduler();
   }
 }
