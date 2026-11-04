@@ -30,7 +30,7 @@ public class ClSmsMsgStrategy implements MsgStrategy {
     String sign = template.getStr("sign");
     String text = VARIABLE.matcher(template.getStr("content") == null ? "" : template.getStr("content")).replaceAll(VAR);
     Kv body = Kv.by("account", param.property("account", "")).set("password", param.property("password", ""))
-        .set("msg", "【" + sign + "】" + (variable ? text : MsgTemplates.render(template.getStr("content"), values)))
+        .set("msg", "【" + sign + "】" + (variable ? text : MsgTemplates.render(template.getStr("content"), MsgTemplates.values(param))))
         .set("report", "false").set("uid", msg.getStr("id")).set("extend", "1");
     if (variable) {
       body.set("params", variableParams(param, values));

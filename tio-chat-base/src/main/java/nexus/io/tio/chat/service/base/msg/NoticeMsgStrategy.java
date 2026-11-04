@@ -18,7 +18,7 @@ public class NoticeMsgStrategy implements MsgStrategy {
   public MsgResult exec(MsgParam param) throws Exception {
     Kv msg = param.getMsg();
     Kv template = param.getTemplate();
-    Map<String, String> values = MsgTemplates.params(msg.getStr("param"));
+    Map<String, Object> values = MsgTemplates.values(param);
     String title = MsgTemplates.render(template.getStr("title"), values);
     String content = MsgTemplates.render(template.getStr("content"), values);
     for (Kv recipient : param.getRecipients()) {

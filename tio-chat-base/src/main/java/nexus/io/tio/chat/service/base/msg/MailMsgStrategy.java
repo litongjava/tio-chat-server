@@ -17,7 +17,7 @@ public class MailMsgStrategy implements MsgStrategy {
     if (param.isDebug()) {
       return MsgResult.of(true, "debug模式无需发送");
     }
-    Map<String, String> values = MsgTemplates.params(param.getMsg().getStr("param"));
+    Map<String, Object> values = MsgTemplates.values(param);
     String title = MsgTemplates.render(param.getTemplate().getStr("title"), values);
     String content = MsgTemplates.render(param.getTemplate().getStr("content"), values);
     String messageId = build(param, title, content).send();

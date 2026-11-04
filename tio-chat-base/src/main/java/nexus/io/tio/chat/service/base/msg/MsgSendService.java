@@ -211,9 +211,9 @@ public class MsgSendService {
     }
   }
 
-  private MsgStrategy strategy(Kv api) {
+  private MsgStrategy strategy(Kv api) throws Exception {
     if (!EXEC_MODE_IMPL.equals(api.getStr("exec_mode"))) {
-      throw new IllegalStateException("不支持脚本方式的消息接口：" + api.getStr("code"));
+      return MsgGroovy.strategy(api.getStr("script"));
     }
     MsgStrategy strategy = STRATEGIES.get(api.getStr("impl_class"));
     if (strategy == null) {

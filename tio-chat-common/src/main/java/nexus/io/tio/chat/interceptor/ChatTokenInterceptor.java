@@ -34,7 +34,7 @@ public class ChatTokenInterceptor implements HttpRequestInterceptor {
       """.strip());
 
   /**
-   * 服务器监控、数据源配置、黑名单管理和内部的用户开通接口（可以操作其他用户或暴露系统信息），以及
+   * 消息接口与模板（其中的脚本在服务端执行）、服务器监控、数据源配置、黑名单管理和内部的用户开通接口（可以操作其他用户或暴露系统信息），以及
    * AI 后台管理接口（原系统归属"管理后台"菜单，跨用户读写），仅管理员可访问。
    * chat/conversation/page 除外：客户端的 AI 助手用它列出自己的对话，服务端只返回本人的对话
    */
@@ -46,6 +46,8 @@ public class ChatTokenInterceptor implements HttpRequestInterceptor {
       |^/api/ai/(image|video|music|write|mind-map)/(page|update|delete)$\
       |^/api/im/defServer$\
       |^/api/im/defDatasourceConfig(/.*)?$\
+      |^/api/base/defInterface(Property)?(/.*)?$\
+      |^/api/base/defMsgTemplate(/.*)?$\
       |^/api/im/user/(register|bindOAuth)$\
       |^/api/im/user/black(/page|/edit|/remove)?$\
       """.strip());

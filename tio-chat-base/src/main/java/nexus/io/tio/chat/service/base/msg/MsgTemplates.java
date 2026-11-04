@@ -36,7 +36,14 @@ final class MsgTemplates {
     return result;
   }
 
-  static String render(String text, Map<String, String> params) throws IOException, TemplateException {
+  /** 模板配置了脚本时，由脚本加工参数后再渲染 */
+  static Map<String, Object> values(MsgParam param) {
+    Map<String, Object> values = new LinkedHashMap<>(params(param.getMsg().getStr("param")));
+    String script = param.getTemplate().getStr("script");
+    return script == null || script.trim().isEmpty() ? values : MsgGroovy.templateValues(script, values);
+  }
+
+  static String render(String text, Map<String, ?> params) throws IOException, TemplateException {
     if (text == null || text.isEmpty()) {
       return text;
     }
