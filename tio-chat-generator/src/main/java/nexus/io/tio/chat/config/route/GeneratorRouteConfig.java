@@ -40,6 +40,7 @@ public class GeneratorRouteConfig {
     r.post(t + "/importTable", new ImportTableHandler()::handle);
     r.post(t + "/syncField", new SyncFieldHandler()::handle);
     r.post(t + "/findTableList", new FindTableListHandler()::handle);
+    r.post(t + "/findByIds", new FindTableListHandler()::handle);
     r.post(t + "/previewCode", new PreviewCodeHandler()::handle);
     r.post(t + "/generatorCode", new GeneratorCodeHandler()::handle);
     r.get(t + "/downloadZip", new DownloadZipHandler()::handle);

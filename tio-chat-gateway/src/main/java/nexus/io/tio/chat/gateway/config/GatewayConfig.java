@@ -29,6 +29,8 @@ public class GatewayConfig implements BootConfiguration {
     router.get("/api/gateway/findOnlineService", new OnlineServiceListHandler(sessionService)::handle);
     router.any("/api/fallback", new FallbackHandler()::handle);
     router.get("/api/gate/doc.html", new GateDocHandler()::handle);
+    router.get("/api/", new GateDocHandler()::handle);
+    router.get("/api", new GateDocHandler()::handle);
     router.get("/api/doc.html", new DocPageHandler()::handle);
   }
 }
