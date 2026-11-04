@@ -1,6 +1,9 @@
 package nexus.io.tio.chat.service.im.chat;
 
 import java.time.LocalDateTime;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -33,6 +36,7 @@ import nexus.io.tio.chat.utils.DbRows;
 import nexus.io.tio.chat.utils.Values;
 import nexus.io.tio.chat.ws.OnlineService;
 import nexus.io.tio.chat.ws.PushService;
+import nexus.io.tio.utils.environment.EnvUtils;
 import nexus.io.tio.utils.json.JsonUtils;
 import nexus.io.tio.utils.snowflake.SnowflakeIdUtils;
 import nexus.io.tio.utils.thread.TioThreadUtils;
@@ -45,6 +49,13 @@ public class MessageService {
   public static final int MARK_LIKE = 1;
   public static final int MARK_DISLIKE = 2;
   public static final int MARK_TYPE_MAX = 14;
+  private static final long PASSAGE_EXPIRE_SECONDS = 3600;
+  private static final long DEFAULT_RETRY_DELAY_SECONDS = 3;
+  private static final ScheduledExecutorService RETRY_SCHEDULER = Executors.newSingleThreadScheduledExecutor(runnable -> {
+    Thread thread = new Thread(runnable, "chat-push-retry");
+    thread.setDaemon(true);
+    return thread;
+  });
 
   @SuppressWarnings("unchecked")
   public long send(ChatMessageReq req, long uid) {
@@ -106,22 +117,45 @@ public class MessageService {
       boolean call = Objects.equals(message.getType(), MsgType.VIDEO_CALL)
           || Objects.equals(message.getType(), MsgType.AUDIO_CALL);
       if (call) {
-        // 通话记录：发起人看到自己的视角，其他成员看到发起人发出的视角
-        pushService.push(WsBaseResp.of(WsRespType.RECEIVE_MESSAGE, getMsgResp(message, senderUid)), senderUid);
         online.remove(senderUid);
-        for (Long member : online) {
-          pushService.push(WsBaseResp.of(WsRespType.RECEIVE_MESSAGE, getMsgResp(message, member)), member);
-        }
-      } else {
-        for (Long member : online) {
-          pushService.push(WsBaseResp.of(WsRespType.RECEIVE_MESSAGE, getMsgResp(message, member)), member);
-        }
+        // 通话记录：发起人看到自己的视角，其他成员看到发起人发出的视角
+        pushWithRetry(message, senderUid);
       }
       for (Long member : online) {
-        Redis.call(jedis -> jedis.sadd(RedisKeys.PASSAGE_MSG + member, String.valueOf(message.getId())));
+        pushWithRetry(message, member);
       }
     } catch (Exception e) {
       log.error("deliver message failed, id={}", message.getId(), e);
+    }
+  }
+
+  /**
+   * 记入在途集合后推送，到期仍未确认时再推送一次。先记录再推送，避免确认先于记录到达造成误重推。
+   */
+  private void pushWithRetry(MessageRecord message, long member) {
+    String key = RedisKeys.PASSAGE_MSG + member;
+    String msgId = String.valueOf(message.getId());
+    Redis.call(jedis -> {
+      jedis.sadd(key, msgId);
+      return jedis.expire(key, PASSAGE_EXPIRE_SECONDS);
+    });
+    WsBaseResp resp = WsBaseResp.of(WsRespType.RECEIVE_MESSAGE, getMsgResp(message, member));
+    PushService pushService = Aop.get(PushService.class);
+    pushService.push(resp, member);
+    long delay = EnvUtils.getLong("chat.push.retry.delay-seconds", DEFAULT_RETRY_DELAY_SECONDS);
+    RETRY_SCHEDULER.schedule(() -> retryIfUnacked(key, msgId, resp, member, message), delay, TimeUnit.SECONDS);
+  }
+
+  private void retryIfUnacked(String key, String msgId, WsBaseResp resp, long member, MessageRecord message) {
+    try {
+      if (Boolean.TRUE.equals(Redis.call(jedis -> jedis.sismember(key, msgId)))) {
+        log.info("message {} not acked by {}, pushing again", msgId, member);
+        Aop.get(PushService.class).push(resp, member);
+        Db.update("update im_contact set last_msg_id=?, active_time=? where room_id=? and uid=?", message.getId(),
+            message.getCreateTime(), message.getRoomId(), message.getFromUid());
+      }
+    } catch (Exception e) {
+      log.error("retry push failed, id={}", msgId, e);
     }
   }
 
