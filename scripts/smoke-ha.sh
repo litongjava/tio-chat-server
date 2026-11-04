@@ -9,7 +9,7 @@ JAVA=${JAVA:-java}; ROOT=$(cd .. && pwd); TS=$(date +%s%N | cut -c1-16); WORK=$(
 ARGS="--wx.mp.app-id=wxtest --wx.mp.token=smoketoken"
 "$JAVA" -jar "$ROOT/tio-chat-ws/target/tio-chat-ws.jar" --server.port=19779 $ARGS > "$ROOT/logs/services/ws2.log" 2>&1 & WS2=$!
 "$JAVA" -jar "$ROOT/tio-chat-im/target/tio-chat-im.jar" --server.port=18779 $ARGS > "$ROOT/logs/services/im2.log" 2>&1 & IM2=$!
-trap 'kill -9 $WS2 $IM2 2>/dev/null; rm -rf "$WORK"' EXIT
+trap 'kill -9 $WS2 $IM2 2>/dev/null || true; rm -rf "$WORK"' EXIT
 for p in 19779 18779; do
   for _ in $(seq 1 60); do (echo > /dev/tcp/127.0.0.1/$p) 2>/dev/null && break; sleep 1; done
 done

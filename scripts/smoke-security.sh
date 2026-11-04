@@ -53,7 +53,11 @@ api POST /api/base/extendMsg/sendByTemplate "$TA" "{\"code\":\"GB$TS\",\"recipie
 sleep 2
 $MYSQL -e "select status from extend_msg where template_code='GB$TS'" 2>/dev/null
 echo "== small endpoints"
-curl -s "$HOST/api/fallback" | json "d['code'], d['msg']"
-curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' "$HOST/api/gate/doc.html"
-curl -s "$HOST/api/doc.html" | grep -c '/api/im'
+# the fallback and doc pages belong to the gateway
+if [ "$GATEWAY" = 1 ]; then
+  curl -s "$HOST/api/fallback" | json "d['code'], d['msg']"
+  curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' "$HOST/api/gate/doc.html"
+  curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' "$HOST/api/"
+  curl -s "$HOST/api/doc.html" | grep -c '/api/im'
+fi
 curl -s "$HOST/api/base/anyone/base/test" -H "Token: $T" | json "d['code'], d['msg']"
