@@ -2,6 +2,8 @@ package nexus.io.tio.chat.service.im;
 
 import com.jfinal.kit.Kv;
 
+import nexus.io.tio.chat.utils.ChatErrors;
+
 import nexus.io.db.activerecord.Db;
 import nexus.io.db.activerecord.Row;
 import nexus.io.jfinal.aop.Aop;
@@ -68,6 +70,7 @@ public class ImUserService {
    * POST /user/register：oauth 服务创建 IM 用户。邮箱已被占用时返回 false
    */
   public boolean registerFromOauth(Kv param) {
+    ChatErrors.require(param.getLong("userId") != null, "userId不能为空");
     String email = param.getStr("email");
     if (email != null && !email.isEmpty() && existsEmail(email)) {
       return false;
