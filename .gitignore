@@ -7,3 +7,4 @@ target/
 .env
 logs/
 client-e2e-out/
+__pycache__/

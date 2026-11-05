@@ -235,13 +235,13 @@ scripts/setup-deepseek.sh   # 登记 DeepSeek 模型（见“AI 模型”一节�
 
 ## 与原后端的差异
 
-用 `scripts/audit-routes.py` 可以对比原后端声明的接口和这里注册的路由，`scripts/audit-parity.py` 会实际调用这些接口，并把响应字段和原后端的返回类对比。对比是静态的，没有同时运行原后端逐个比较响应内容。
+用 `scripts/audit-routes.py` 可以对比原后端声明的接口和这里注册的路由，`scripts/audit-parity.py` 会实际调用这些接口，并把响应字段和原后端的返回类对比。`scripts/compare-original.py` 把同样的请求发给运行中的原后端，比较是否成功和响应字段，`scripts/client-admin-e2e.py` 用 HuLa-Admin 前端驱动本服务，见 [docs/verify-original.md](docs/verify-original.md)。
 
 有意不同：
 
 - 黑名单管理、服务监控、数据源配置、代码生成和 `/api/im/user/register`、`bindOAuth` 仅管理员可用。`/api/base` 下除路径中带 `anyone`、`anyUser`、`anyTenant` 的接口外也都仅管理员可用，其中用户、角色、消息接口和模板等操作不能开放给普通用户。这些接口也可以通过角色授权：角色被授予的资源配置了接口（`def_resource_api`）时可以访问。管理端用户（`systemType=10`）的每个接口都按这个规则校验，没有配置的接口不能访问，与原网关相同。
 - 比原后端严格的接口：`/anyone/defTenant` 和 `/anyone/extendNotice` 只能访问本人的数据，普通用户不能修改租户状态和通知内容，也不能新增通知；`/anyone/defTenant/updateStatus` 和 `/extendMsg/anyUser/sendByTemplate` 需要管理员或授权（原后端任何人都能审核租户、无需登录发送消息）；`/baseLoginLog/anyone/page` 普通用户只能看到自己的日志；`/anyone/extendNotice/deleteMyNotice` 只删除发给自己的通知。知识库文档的地址不能指向本机和内网，域名解析和跳转也不能绕过这个限制。网关在服务连续失败时熔断，返回和 `/api/fallback` 相同的响应。
-- 增加了原后端没有、HuLa-Admin 会调用的接口，`scripts/audit-admin-client.py` 可以检查它的调用是否都有路由：`/api/base/user/*`、`/api/base/defResource/{add,edit,del,visible,isRouteExist}`、`/api/im/room/group/{mute,unmute}`、`/api/im/feed/comment/del`、`/api/oauth/anyUser/updatePassword`、`/api/oauth/anyTenant/menu/initRoute`。其中 `/user/current`、`updateCurrent`、`uploadAvatar` 登录即可使用，其余 `/user/*` 和菜单接口按后台权限校验。这些接口是按 HuLa-Admin 的调用代码实现的，没有原后端可以对照。禁言保存在 Redis 中，到期自动解除，变化时在群里发系统消息，成员列表返回 `muted`。头像上传只支持 MinIO。
+- 增加了原后端没有、HuLa-Admin 会调用的接口，`scripts/audit-admin-client.py` 可以检查它的调用是否都有路由：`/api/base/user/*`、`/api/base/defResource/{add,edit,del,visible,isRouteExist}`、`/api/im/room/group/{mute,unmute}`、`/api/im/feed/comment/del`、`/api/oauth/anyUser/updatePassword`、`/api/oauth/anyTenant/menu/initRoute`。其中 `/user/current`、`updateCurrent`、`uploadAvatar` 登录即可使用，其余 `/user/*` 和菜单接口按后台权限校验。其中大部分在原后端有名字不同的对应接口，规则相同；`group/mute`、`unmute`、`menu/initRoute`、`isRouteExist` 原后端没有实现，是按 HuLa-Admin 的调用代码写的。禁言保存在 Redis 中，到期自动解除，变化时在群里发系统消息，成员列表返回 `muted`。头像上传只支持 MinIO。
 - 请求缺少必填字段或格式不对时返回校验错误（`-9`），原后端是服务器错误。原后端的安装脚本没有 `ai_workflow` 表，这里在 AI 服务启动时创建。
 - 代码生成的后端模板生成 tio-boot 代码（实体、Service、每个接口一个 Handler、路由配置），不生成 MyBatis 的 Mapper、Manager 和 VO；生成的项目是 tio-boot 项目。父类决定生成哪些接口。导入导出是 CSV，导出预览是 HTML 表格（原后端是 Excel）。缓存保存在 Redis。使用行级租户的表只信任带内部密钥（`chat.internal.secret`）的请求，也就是经过网关的请求，生产环境要修改这个密钥的默认值。回显的常量生成在每张表自己的 `XxxEcho` 类中，原后端写入公共的 `EchoApi`、`EchoDictType`。选择 seata 时只加入依赖，与原后端相同。前端模板来自原后端，修正了在 lamp-web 中编译不过的地方，主从结构同时生成从表的接口定义和语言包。因此 `getFieldTemplate`、`getDefFileOverrideStrategy` 返回的后端模板项不同。
 - 代码生成的数据源支持 MySQL、MariaDB 和 PostgreSQL，不支持 Oracle 和 SQL Server，`dsId` 为空或 0 时读取当前服务的数据库。连接串不能包含读取本地文件或加载类的参数。
