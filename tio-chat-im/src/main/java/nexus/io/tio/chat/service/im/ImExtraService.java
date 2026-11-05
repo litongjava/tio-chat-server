@@ -69,7 +69,8 @@ public class ImExtraService {
     List<Kv> result = new ArrayList<>();
     for (Kv row : Db.findMaps("select * from im_user_state where is_del=0 order by id")) {
       result.add(Kv.by("id", row.getLong("id")).set("title", row.getStr("title")).set("url", row.getStr("url"))
-          .set("createTime", Values.time(row.get("create_time"))).set("updateTime", Values.time(row.get("update_time"))));
+          .set("createTime", Values.time(row.get("create_time"))).set("updateTime", Values.time(row.get("update_time")))
+          .set("createBy", row.get("create_by")).set("updateBy", row.get("update_by")));
     }
     return result;
   }

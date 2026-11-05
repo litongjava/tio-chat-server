@@ -166,11 +166,14 @@ public class CrudService {
     return vo;
   }
 
-  /** 按 id 查询单条，内容与详情接口相同，不带回显 */
+  /** 按 id 查询单条，内容与详情接口相同 */
   public Kv getWithDetail(CrudDef def, Long id) {
     Kv vo = get(def, id);
-    if (vo != null && def.getHook() != null) {
-      def.getHook().decorateDetail(vo);
+    if (vo != null) {
+      Aop.get(EchoService.class).fill(List.of(vo), def.getEcho());
+      if (def.getHook() != null) {
+        def.getHook().decorateDetail(vo);
+      }
     }
     return vo;
   }
@@ -182,6 +185,7 @@ public class CrudService {
     for (Kv row : Db.findMaps("select * from " + def.getTable() + where + " order by id desc", params.toArray())) {
       result.add(toVo(def, row));
     }
+    Aop.get(EchoService.class).fill(result, def.getEcho());
     if (def.getHook() != null) {
       def.getHook().decorateList(result);
     }

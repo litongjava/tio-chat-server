@@ -35,7 +35,7 @@ public class ImMiscRouteConfig {
     r.post(P + "/user/bindOAuth", new UserBindOauthHandler()::handle);
     r.get(P + "/defServer", new ServerInfoHandler()::handle);
     r.post(P + "/defDatasourceConfig/testConnect", new DatasourceTestConnectHandler()::handle);
-    Aop.get(CrudRouteRegistrar.class).register(r, P, CrudDef.of("/defDatasourceConfig", "def_datasource_config")
+    Aop.get(CrudRouteRegistrar.class).register(r, P, CrudDef.of("/defDatasourceConfig", "def_datasource_config").hidden("password")
         .like("name", "username", "url", "driver_class_name"));
     r.get(P + "/user/emoji/list", new EmojiListHandler()::handle);
     r.post(P + "/user/emoji", new EmojiAddHandler()::handle);

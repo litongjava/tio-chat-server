@@ -24,7 +24,7 @@ public class OauthUserService {
         .set("sex", user.get("sex") == null ? null : user.get("sex").toString()).set("state", toBool(user.get("state")))
         .set("avatar", user.getStr("avatar")).set("workDescribe", user.getStr("work_describe"))
         .set("uid", session.getUid()).set("createTime", user.get("create_time"))
-        .set("updateTime", user.get("update_time")).set("baseEmployee", null).set("defApplication", null)
+        .set("updateTime", user.get("update_time")).set("createBy", user.get("create_by")).set("updateBy", user.get("update_by")).set("baseEmployee", null).set("defApplication", null)
         .set("homePath", null).set("echoMap", Kv.create());
     return result;
   }
