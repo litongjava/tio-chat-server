@@ -22,6 +22,7 @@ public class GatewayConfig implements BootConfiguration {
     SessionService sessionService = SessionService.fromConfig();
     HookCan.me().addDestroyMethod(sessionService::close);
     TioBootGateway.start();
+    TioBootGateway.setFallback(new FallbackHandler()::handle);
     TioBootGateway.addGlobalFilter(new TokenContextFilter(sessionService));
 
     HttpRequestRouter router = TioBootServer.me().getRequestRouter();

@@ -80,3 +80,14 @@ curl -s -XPOST "http://localhost:18779/api/im/chat/msg" -H 'Content-Type: applic
 sleep 1
 kill -9 $IM2; IM2=
 wait $P; echo "deliveries: $(cat "$WORK/retry")"
+
+echo "== circuit breaker: the gateway answers for a service that is down"
+SYSPID=$(cat "$ROOT/logs/services/system.pid")
+kill -9 "$SYSPID"
+for i in 1 2 3 4 5 6 7; do curl -s "$HOST/api/system/anyTenant/config/init" | json "d['code'], d['msg']"; done | sort | uniq -c | tr -s ' '
+START=$(date +%s%N); curl -s -o /dev/null "$HOST/api/system/anyTenant/config/init"; echo "open answers at once: $(( ($(date +%s%N)-START)/1000000 < 200 ))"
+curl -s "$HOST/api/oauth/anyTenant/checkEmail?email=x@example.com" | json "'other services are not affected:', d['code'] != -2"
+"$JAVA" -jar "$ROOT/tio-chat-system/target/tio-chat-system.jar" $ARGS > "$ROOT/logs/services/system.log" 2>&1 &
+echo $! > "$ROOT/logs/services/system.pid"; disown
+for _ in $(seq 1 60); do (echo > /dev/tcp/127.0.0.1/19877) 2>/dev/null && break; sleep 1; done; sleep 14
+curl -s "$HOST/api/system/anyTenant/config/init" | json "'after the service is back:', d['code']"
