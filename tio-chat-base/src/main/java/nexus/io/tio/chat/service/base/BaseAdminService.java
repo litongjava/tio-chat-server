@@ -94,12 +94,12 @@ public class BaseAdminService {
   }
 
   public void moveResource(Long id, Long parentId) {
-    Long newParent = parentId == null ? 0L : parentId;
-    String parentPath = newParent == 0 ? "/" : Db.queryStr("select tree_path from def_resource where id=?", newParent);
-    Integer parentGrade = newParent == 0 ? -1 : Db.queryInt("select tree_grade from def_resource where id=?", newParent);
-    String treePath = (parentPath == null ? "/" : parentPath) + (newParent == 0 ? "" : newParent + "/");
-    Db.update("update def_resource set parent_id=?, tree_path=?, tree_grade=? where id=?", newParent, treePath,
-        parentGrade == null ? 0 : parentGrade + 1, id);
+    Row row = Row.by("parent_id", parentId == null ? 0L : parentId);
+    Db.tx(() -> {
+      BaseTrees.beforeMove(id, row, "def_resource", "资源");
+      Db.update("update def_resource set parent_id=?, tree_path=?, tree_grade=? where id=?", row.get("parent_id"), row.get("tree_path"), row.get("tree_grade"), id);
+      return true;
+    });
   }
 
   public List<Kv> areaLazyList(Long parentId) {

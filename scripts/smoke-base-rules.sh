@@ -69,6 +69,51 @@ del /defResource "[\"$M1\"]" | msg
 del /defResource "[\"$BT\"]" | json "d['code']"; del /defResource "[\"$M1\"]" | json "d['code']"
 echo "interfaces removed: $(q "select count(*) from def_resource_api where resource_id=$BT and is_del=0")"
 
+echo "== resource rules on update"
+PA=$(post /defResource "{\"applicationId\":\"1\",\"code\":\"pa$TS\",\"name\":\"pa$TS\",\"resourceType\":\"20\",\"path\":\"/pa$TS\",\"component\":\"/c\",\"state\":true,\"isGeneral\":false}" | json "d['data']['id']")
+PB=$(post /defResource "{\"applicationId\":\"1\",\"code\":\"pb$TS\",\"name\":\"pb$TS\",\"resourceType\":\"20\",\"path\":\"/pb$TS\",\"component\":\"/c\",\"state\":true}" | json "d['data']['id']")
+PC=$(post /defResource "{\"applicationId\":\"1\",\"code\":\"pc$TS\",\"name\":\"pc$TS\",\"resourceType\":\"20\",\"path\":\"/pc$TS\",\"component\":\"/c\",\"state\":true,\"parentId\":\"$PA\",\"metaJson\":\"{ \\\"a\\\" : 1 }\"}" | json "d['data']['id']")
+PD=$(post /defResource "{\"applicationId\":\"1\",\"code\":\"pd$TS\",\"name\":\"pd$TS\",\"resourceType\":\"40\",\"state\":true,\"parentId\":\"$PC\"}" | json "d['data']['id']")
+echo "meta normalized: $(q "select meta_json from def_resource where id=$PC")"
+post /defResource "{\"applicationId\":\"1\",\"code\":\"pe$TS\",\"name\":\"pe\",\"resourceType\":\"40\",\"metaJson\":\"{bad\"}" | msg
+post /defResource "{\"applicationId\":\"1\",\"code\":\"pf$TS\",\"name\":\"pf\",\"resourceType\":\"40\",\"isGeneral\":true,\"parentId\":\"$PA\"}" | json "d['code'], d['msg'].replace('pa$TS','P')"
+put /defResource "{\"id\":\"$PA\",\"state\":false}" | msg
+put /defResource "{\"id\":\"$PB\",\"name\":\"pa$TS\"}" | json "d['code'], d['msg'].replace('pa$TS','P')"
+put /defResource "{\"id\":\"$PB\",\"path\":\"/pa$TS\"}" | json "d['code'], d['msg'].replace('/pa$TS','P')"
+echo "-- moving a node takes its descendants along"
+put /defResource "{\"id\":\"$PC\",\"parentId\":\"$PB\"}" | json "d['code']"
+echo "moved: $(q "select tree_path='/$PB/', tree_grade from def_resource where id=$PC") descendant: $(q "select tree_path='/$PB/$PC/', tree_grade from def_resource where id=$PD")"
+put /defResource "{\"id\":\"$PB\",\"parentId\":\"$PD\"}" | msg
+put /defResource "{\"id\":\"$PB\",\"parentId\":\"$PB\"}" | msg
+api PUT "$B/defResource/moveResource?id=$PC&parentId=$PA" "$TA" | json "d['code']"
+echo "after move endpoint: $(q "select tree_path='/$PA/$PC/', tree_grade from def_resource where id=$PD")"
+api PUT "$B/defResource/moveResource?id=$PA&parentId=$PD" "$TA" | msg
+del /defResource "[\"$PD\"]" >/dev/null; del /defResource "[\"$PC\"]" >/dev/null; del /defResource "[\"$PA\",\"$PB\"]" >/dev/null
+OA=$(post /baseOrg "{\"name\":\"oa$TS\"}" | json "d['data']['id']"); OB=$(post /baseOrg "{\"name\":\"ob$TS\"}" | json "d['data']['id']")
+OC=$(post /baseOrg "{\"name\":\"oc$TS\",\"parentId\":\"$OA\"}" | json "d['data']['id']"); OD=$(post /baseOrg "{\"name\":\"od$TS\",\"parentId\":\"$OC\"}" | json "d['data']['id']")
+put /baseOrg "{\"id\":\"$OC\",\"parentId\":\"$OB\"}" | json "d['code']"
+echo "org descendant: $(q "select tree_path='/$OB/$OC/', tree_grade from base_org where id=$OD")"
+put /baseOrg "{\"id\":\"$OB\",\"parentId\":\"$OD\"}" | msg
+del /baseOrg "[\"$OD\"]" >/dev/null; del /baseOrg "[\"$OC\"]" >/dev/null; del /baseOrg "[\"$OA\",\"$OB\"]" >/dev/null
+
+echo "== logo"
+LG=$(date +%s%N | cut -c1-18)
+AP=$(post /defApplication "{\"name\":\"lg$TS\",\"version\":\"1\",\"type\":\"10\",\"appendixIcon\":\"$LG\"}" | json "d['data']['id']")
+get "/defApplication/detail?id=$AP" | json "d['data']['appendixIcon'] == '$LG'"
+echo "appendix: $(q "select biz_type from base_com_appendix where biz_id=$AP")"
+del /defApplication "[\"$AP\"]" >/dev/null
+echo "removed: $(q "select count(*) from base_com_appendix where biz_id=$AP")"
+TN=$(post /defTenant "{\"name\":\"t$TS\",\"contactName\":\"c\",\"logo\":\"$LG\"}" | json "d['data']['id']")
+get "/defTenant/detail?id=$TN" | json "d['data']['logo'] == '$LG', d['data']['status']"
+del /defTenant "[\"$TN\"]" >/dev/null
+
+echo "== login log"
+TA=$(curl -s -XPOST "$HOST/api/oauth/anyTenant/login" -H 'Content-Type: application/json' -H "Authorization: $AUTH" -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' -d "{\"account\":\"rules$TS@example.com\",\"password\":\"123456\",\"systemType\":2,\"deviceType\":\"PC\",\"clientId\":\"cl\"}" | json "d['data']['token']")
+sleep 1
+echo "logged in: $(q "select browser, browser_version, operating_system from def_login_log where username in (select username from def_user where email='rules$TS@example.com') order by id desc limit 1")"
+LL=$(post /defLoginLog "{\"userId\":\"$UID1\",\"ua\":\"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15\"}")
+echo "$LL" | json "d['code'], d['data']['username'] == 'r$TS', d['data']['browser'], d['data']['operatingSystem'], len(d['data']['loginDate'])"
+
 echo "== dictionary"
 D=$(post /defDict "{\"key\":\"dk$TS\",\"name\":\"d\",\"state\":true,\"insertList\":[{\"key\":\"a\",\"name\":\"A\",\"state\":true},{\"key\":\"b\",\"name\":\"B\",\"state\":true}]}" | json "d['data']['id']")
 echo "items: $(q "select group_concat(key_ order by key_), min(parent_key)='dk$TS' from def_dict where parent_id=$D and is_del=0")"
@@ -99,6 +144,8 @@ IP=$(post /defInterfaceProperty "{\"interfaceId\":\"$I\",\"name\":\"n\",\"key\":
 echo "properties removed: $(q "select is_del from def_interface_property where id=$IP")"
 T1=$(post /defMsgTemplate "{\"code\":\"t$TS\",\"name\":\"t\",\"type\":\"01\",\"interfaceId\":\"$I\",\"title\":\"hi \${name}\",\"content\":\"\${name} \${code}\",\"state\":true,\"remindMode\":\"01\",\"target\":\"01\",\"autoRead\":true}"); echo "$T1" | json "d['code'], d['data']['param'] if d['data'] else d['msg']"; post /defMsgTemplate "{\"code\":\"t$TS\",\"name\":\"t\"}" | json "d['code'], d['msg'].replace('t$TS','T')"; del /defMsgTemplate "[\"$(echo "$T1" | json "d['data']['id']")\"]" >/dev/null
 L=$(post /baseOperationLog "{\"description\":\"d\",\"params\":\"p\",\"result\":\"r\",\"exDetail\":\"e\"}" | json "d['data']['id']"); get "/baseOperationLog/detail?id=$L" | json "d['data']['params'], d['data']['result'], d['data']['exDetail']"; del /baseOperationLog "[\"$L\"]" >/dev/null
+
+curl -s -XPOST "$HOST/api/system/anyTenant/translate/text" -H 'Content-Type: application/json' -d '{}' | json "'translate fields:', sorted(d['data'].keys())"
 
 echo "== bad input is a validation error, not a server error"
 post /baseOrg '{}' | msg

@@ -36,16 +36,16 @@ public class BaseCrudRegistry {
     List<CrudDef> defs = new ArrayList<>();
     defs.add(CrudDef.of("/defApplication", "def_application").like("app_key", "app_secret", "name", "version", "type", "introduce", "redirect", "remark", "url").echo("type", "dict:TENANT_APPLICATION_TYPE").cache().hook(BaseCrudHooks.APPLICATION));
     defs.add(CrudDef.of("/defResource", "def_resource").like("code", "name", "resource_type", "describe_", "path", "open_with", "component", "redirect", "icon", "sub_group", "data_scope", "custom_class", "meta_json", "tree_path").echo("resourceType", "dict:TENANT_RESOURCE_TYPE").echo("openWith", "dict:TENANT_RESOURCE_OPEN_WITH").echo("dataScope", "dict:TENANT_RESOURCE_DATA_SCOPE").hook(BaseCrudHooks.RESOURCE));
-    defs.add(CrudDef.of("/baseLoginLog", "def_login_log").like("request_ip", "nick_name", "username", "description", "login_date", "ua", "browser", "browser_version", "operating_system", "location", "status").echo("status", "dict:SYSTEM_LOGIN_STATUS"));
+    defs.add(CrudDef.of("/baseLoginLog", "def_login_log").like("request_ip", "nick_name", "username", "description", "login_date", "ua", "browser", "browser_version", "operating_system", "location", "status").echo("status", "dict:SYSTEM_LOGIN_STATUS").hook(BaseCrudHooks.LOGIN_LOG));
     defs.add(CrudDef.of("/baseOperationLog", "base_operation_log").like("request_ip", "user_name", "description", "class_path", "action_method", "request_uri", "ua").hook(BaseCrudHooks.OPERATION_LOG));
     defs.add(CrudDef.of("/baseRole", "base_role").like("type_", "category", "name", "code", "remarks").echo("category", "dict:BASE_ROLE_CATEGORY").cache().hook(BaseCrudHooks.ROLE));
     defs.add(CrudDef.of("/defArea", "def_area").like("code", "division_code", "full_name", "longitude", "latitude", "level_", "source_", "tree_path", "name").echo("level", "dict:GLOBAL_AREA_LEVEL").echo("source", "dict:TENANT_AREA_SOURCE").hook(BaseCrudHooks.AREA));
     defs.add(CrudDef.of("/defClient", "def_client").like("client_id", "client_secret", "name", "type", "remarks").echo("type", "dict:TENANT_CLIENT_TYPE").hook(BaseCrudHooks.CLIENT));
     defs.add(CrudDef.of("/defDict", "def_dict").fixedWhere("parent_id=0").hook(BaseCrudHooks.DICT).like("parent_key", "classify", "key_", "name", "remark", "icon", "css_style", "css_class"));
     defs.add(CrudDef.of("/defDictItem", "def_dict").fixedWhere("parent_id<>0").hook(BaseCrudHooks.DICT_ITEM).like("parent_key", "classify", "key_", "name", "remark", "icon", "css_style", "css_class"));
-    defs.add(CrudDef.of("/defLoginLog", "def_login_log").like("request_ip", "nick_name", "username", "description", "login_date", "ua", "browser", "browser_version", "operating_system", "location", "status").echo("status", "dict:SYSTEM_LOGIN_STATUS"));
+    defs.add(CrudDef.of("/defLoginLog", "def_login_log").like("request_ip", "nick_name", "username", "description", "login_date", "ua", "browser", "browser_version", "operating_system", "location", "status").echo("status", "dict:SYSTEM_LOGIN_STATUS").hook(BaseCrudHooks.LOGIN_LOG));
     defs.add(CrudDef.of("/defParameter", "def_parameter").like("key_", "value", "name", "remarks", "param_type").cache().hook(BaseCrudHooks.PARAMETER));
-    defs.add(CrudDef.of("/anyone/defTenant", "def_tenant").echo("status", "dict:TENANT_TENANT_STATUS").cache().ownedBy("create_by", false)
+    defs.add(CrudDef.of("/anyone/defTenant", "def_tenant").echo("status", "dict:TENANT_TENANT_STATUS").cache().ownedBy("create_by", false).hook(BaseCrudHooks.TENANT_LOGO)
         .protect("status", "state", "register_type", "package_id", "expire_time", "account_count", "contact_user_id").userDefault("status", WAITING_TENANT)
         .userDefault("register_type", TENANT_REGISTER).userDefault("package_id", 0L).userDefault("account_count", 0).userDefault("expire_time", TENANT_NOT_EXPIRE)
         .required("name", "企业名称不能为空").required("contact_name", "联系人不能为空"));

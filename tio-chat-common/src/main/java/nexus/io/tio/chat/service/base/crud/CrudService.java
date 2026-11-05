@@ -97,13 +97,13 @@ public class CrudService {
     }
     Row row = toRow(def, body, false);
     row.remove("id");
-    if (def.getHook() != null) {
-      def.getHook().beforeUpdate(id, body, row);
-    }
-    if (TableMeta.hasColumn(def.getTable(), "update_by") && operator() != null) {
-      row.set("update_by", operator());
-    }
     Db.tx(() -> {
+      if (def.getHook() != null) {
+        def.getHook().beforeUpdate(id, body, row);
+      }
+      if (TableMeta.hasColumn(def.getTable(), "update_by") && operator() != null) {
+        row.set("update_by", operator());
+      }
       if (!row.getColumns().isEmpty()) {
         List<Object> params = new ArrayList<>();
         StringBuilder sql = new StringBuilder("update ").append(def.getTable()).append(" set ");

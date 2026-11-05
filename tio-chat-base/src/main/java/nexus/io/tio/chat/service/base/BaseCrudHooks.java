@@ -1,5 +1,6 @@
 package nexus.io.tio.chat.service.base;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -18,6 +19,7 @@ import nexus.io.tio.chat.service.base.crud.CrudHook;
 import nexus.io.tio.chat.utils.AccountUtils;
 import nexus.io.tio.chat.utils.ChatErrors;
 import nexus.io.tio.chat.utils.DbRows;
+import nexus.io.tio.chat.utils.UserAgents;
 import nexus.io.tio.chat.utils.Values;
 import nexus.io.tio.utils.environment.EnvUtils;
 import nexus.io.tio.utils.json.JsonUtils;
@@ -31,8 +33,8 @@ public final class BaseCrudHooks {
   private static final String BUSINESS_VALUE = "20";
   private static final String DICT_SYSTEM = "10";
   private static final long ROOT_ID = 0L;
-  private static final String ROOT_TREE_PATH = "/";
-  private static final int ROOT_TREE_GRADE = 0;
+  private static final String APPENDIX_APPLICATION_LOGO = "DEF__APPLICATION__LOGO";
+  private static final String APPENDIX_TENANT_LOGO = "DEF__TENANT__LOGO";
   private static final String RESOURCE_MENU = "20";
   private static final String EXEC_IMPL_CLASS = "01";
   private static final int TENANT_WAITING = 1;
@@ -82,20 +84,28 @@ public final class BaseCrudHooks {
     return Db.queryLong("select count(*) from " + table + " where is_del=0 and " + column + " in (" + Values.placeholders(ids.size()) + ")", ids.toArray());
   }
 
-  /** 按父级计算 parent_id、tree_path 和 tree_grade。修改时只有传了 parentId 才重新计算 */
-  private static void fillTree(Row row, String table, String label) {
-    if (!row.getColumns().containsKey("parent_id")) {
+  /** 附件表：业务数据和文件的关系，一个业务类型保留一个文件 */
+  private static void saveAppendix(Long bizId, String bizType, Object fileId) {
+    Long file = Values.toLong(fileId);
+    if (file == null) {
       return;
     }
-    Long parentId = Values.toLong(row.get("parent_id"));
-    if (parentId == null || parentId <= 0) {
-      row.set("parent_id", ROOT_ID).set("tree_path", ROOT_TREE_PATH).set("tree_grade", ROOT_TREE_GRADE);
-      return;
+    Db.update("delete from base_com_appendix where biz_id=? and biz_type=?", bizId, bizType);
+    Db.update("delete from base_com_appendix where id=?", file);
+    DbRows.save("base_com_appendix", Row.by("id", file).set("biz_id", bizId).set("biz_type", bizType));
+  }
+
+  private static void removeAppendix(Collection<Long> bizIds, String bizType) {
+    if (!bizIds.isEmpty()) {
+      List<Object> params = new ArrayList<>(bizIds);
+      params.add(bizType);
+      Db.update("delete from base_com_appendix where biz_id in (" + Values.placeholders(bizIds.size()) + ") and biz_type=?", params.toArray());
     }
-    Kv parent = Db.findFirstMap("select id, tree_path, tree_grade from " + table + " where id=? and is_del=0", parentId);
-    ChatErrors.require(parent != null, "请正确填写父级" + label);
-    String path = parent.getStr("tree_path") == null ? ROOT_TREE_PATH : parent.getStr("tree_path");
-    row.set("tree_grade", (parent.getInt("tree_grade") == null ? 0 : parent.getInt("tree_grade")) + 1).set("tree_path", path + parent.getLong("id") + "/");
+  }
+
+  private static String appendixId(Long bizId, String bizType) {
+    Long file = Db.queryLong("select id from base_com_appendix where biz_id=? and biz_type=? and is_del=0 limit 1", bizId, bizType);
+    return file == null ? null : String.valueOf(file);
   }
 
   public static final CrudHook USER = new CrudHook() {
@@ -237,13 +247,13 @@ public final class BaseCrudHooks {
       ChatErrors.require(row.getStr("name") != null && !row.getStr("name").isBlank(), "请填写名称");
       check(row, null);
       row.getColumns().putIfAbsent("parent_id", ROOT_ID);
-      fillTree(row, "base_org", "组织");
+      BaseTrees.fill(row, "base_org", "组织");
     }
 
     @Override
     public void beforeUpdate(Long id, Map<String, Object> body, Row row) {
       check(row, id);
-      fillTree(row, "base_org", "组织");
+      BaseTrees.beforeMove(id, row, "base_org", "组织");
     }
 
     @Override
@@ -310,6 +320,70 @@ public final class BaseCrudHooks {
       row.getColumns().putIfAbsent("account_count", 0);
       row.getColumns().putIfAbsent("expire_time", TENANT_NOT_EXPIRE);
     }
+
+    @Override
+    public void afterSave(Map<String, Object> body, Row row) {
+      TENANT_LOGO.afterSave(body, row);
+    }
+
+    @Override
+    public void afterUpdate(Long id, Map<String, Object> body) {
+      TENANT_LOGO.afterUpdate(id, body);
+    }
+
+    @Override
+    public void beforeDelete(Collection<Long> ids) {
+      TENANT_LOGO.beforeDelete(ids);
+    }
+
+    @Override
+    public void decorateDetail(Kv vo) {
+      TENANT_LOGO.decorateDetail(vo);
+    }
+  };
+
+  /** 企业 logo，普通用户申请租户时也可以上传 */
+  public static final CrudHook TENANT_LOGO = new CrudHook() {
+    @Override
+    public void afterSave(Map<String, Object> body, Row row) {
+      saveAppendix(row.getLong("id"), APPENDIX_TENANT_LOGO, body.get("logo"));
+    }
+
+    @Override
+    public void afterUpdate(Long id, Map<String, Object> body) {
+      saveAppendix(id, APPENDIX_TENANT_LOGO, body.get("logo"));
+    }
+
+    @Override
+    public void beforeDelete(Collection<Long> ids) {
+      removeAppendix(ids, APPENDIX_TENANT_LOGO);
+    }
+
+    @Override
+    public void decorateDetail(Kv vo) {
+      vo.set("logo", appendixId(Values.toLong(vo.get("id")), APPENDIX_TENANT_LOGO));
+    }
+  };
+
+  public static final CrudHook LOGIN_LOG = new CrudHook() {
+    /** 按 userId、手机号或用户名找到用户，写入日志 */
+    @Override
+    public void beforeSave(Map<String, Object> body, Row row) {
+      row.set("login_date", LocalDate.now().toString());
+      UserAgents.fill(row, row.getStr("ua"));
+      Kv user = null;
+      Long userId = Values.toLong(row.get("user_id"));
+      if (userId != null) {
+        user = Db.findFirstMap("select id, username, nick_name from def_user where id=? and is_del=0", userId);
+      } else if (body.get("mobile") != null) {
+        user = Db.findFirstMap("select id, username, nick_name from def_user where mobile=? and is_del=0", body.get("mobile"));
+      } else if (row.get("username") != null) {
+        user = Db.findFirstMap("select id, username, nick_name from def_user where username=? and is_del=0", (Object) row.get("username"));
+      }
+      if (user != null) {
+        row.set("username", user.get("username")).set("user_id", user.get("id")).set("nick_name", user.get("nick_name"));
+      }
+    }
   };
 
   public static final CrudHook APPLICATION = new CrudHook() {
@@ -322,6 +396,26 @@ public final class BaseCrudHooks {
     @Override
     public void beforeUpdate(Long id, Map<String, Object> body, Row row) {
       unique(row, "def_application", "name", id, "应用名称");
+    }
+
+    @Override
+    public void afterSave(Map<String, Object> body, Row row) {
+      saveAppendix(row.getLong("id"), APPENDIX_APPLICATION_LOGO, body.get("appendixIcon"));
+    }
+
+    @Override
+    public void afterUpdate(Long id, Map<String, Object> body) {
+      saveAppendix(id, APPENDIX_APPLICATION_LOGO, body.get("appendixIcon"));
+    }
+
+    @Override
+    public void beforeDelete(Collection<Long> ids) {
+      removeAppendix(ids, APPENDIX_APPLICATION_LOGO);
+    }
+
+    @Override
+    public void decorateDetail(Kv vo) {
+      vo.set("appendixIcon", appendixId(Values.toLong(vo.get("id")), APPENDIX_APPLICATION_LOGO));
     }
   };
 
@@ -351,13 +445,13 @@ public final class BaseCrudHooks {
       ChatErrors.require(row.getStr("code") != null && !row.getStr("code").isBlank(), "请填写地区编码");
       unique(row, "def_area", "code", null, "地区编码");
       row.getColumns().putIfAbsent("parent_id", ROOT_ID);
-      fillTree(row, "def_area", "地区");
+      BaseTrees.fill(row, "def_area", "地区");
     }
 
     @Override
     public void beforeUpdate(Long id, Map<String, Object> body, Row row) {
       unique(row, "def_area", "code", id, "地区编码");
-      fillTree(row, "def_area", "地区");
+      BaseTrees.beforeMove(id, row, "def_area", "地区");
     }
   };
 
@@ -436,7 +530,7 @@ public final class BaseCrudHooks {
           "【名称】:" + row.getStr("name") + "重复");
       String path = row.getStr("path");
       if (!path.startsWith("http")) {
-        ChatErrors.require(!used("def_resource", "path", path, id, "resource_type=? and application_id=?", RESOURCE_MENU, application), "【地址栏路径】:" + path + "重复");
+        ChatErrors.require(!used("def_resource", "path", path, id, "application_id=?", application), "【地址栏路径】:" + path + "重复");
       }
       Long parentId = Values.toLong(row.get("parent_id"));
       if (parentId != null && parentId > 0) {
@@ -446,6 +540,54 @@ public final class BaseCrudHooks {
           ChatErrors.require(!Values.isTrue(parent.get("is_hidden")), "菜单不能挂载在隐藏菜单下级");
         }
       }
+    }
+
+    /** 公共资源和启用的资源，父节点也必须是公共资源和启用的；修改时子节点要先改回来才能取消 */
+    private void checkGeneralAndState(Row row, Long id) {
+      boolean general = Values.isTrue(row.get("is_general"));
+      boolean state = row.get("state") == null || Values.isTrue(row.get("state"));
+      Long parentId = Values.toLong(row.get("parent_id"));
+      if (parentId != null && parentId > 0) {
+        Kv parent = Db.findFirstMap("select name, is_general, state from def_resource where id=? and is_del=0", parentId);
+        ChatErrors.require(parent != null, "父节点不存在");
+        ChatErrors.require(!general || Values.isTrue(parent.get("is_general")), "请先将父节点【" + parent.getStr("name") + "】-“公共资源”字段修改为：“是”");
+        ChatErrors.require(!state || Values.isTrue(parent.get("state")), "请先将父节点【" + parent.getStr("name") + "】-“状态”字段修改为：“启用”");
+      }
+      if (id == null) {
+        return;
+      }
+      for (Kv child : Db.findMaps("select is_general, state from def_resource where parent_id=? and is_del=0", id)) {
+        ChatErrors.require(general || !Values.isTrue(child.get("is_general")), "请将所有子节点的“公共资源”修改为“否”后再修改");
+        ChatErrors.require(state || !Values.isTrue(child.get("state")), "请将所有子节点的“状态”修改为“禁用”后再修改");
+      }
+    }
+
+    private void normalizeMeta(Row row) {
+      if (!row.getColumns().containsKey("meta_json")) {
+        return;
+      }
+      String meta = row.getStr("meta_json");
+      if (meta == null || meta.isEmpty()) {
+        row.set("meta_json", "");
+        return;
+      }
+      try {
+        row.set("meta_json", JsonUtils.toJson(JsonUtils.parseToMap(meta, String.class, Object.class)));
+      } catch (RuntimeException e) {
+        throw ChatErrors.of("【元数据】须满足JSON格式");
+      }
+    }
+
+    /** 修改接口可以只传变化的字段，校验时补上原来的值 */
+    private Row merged(Long id, Row row) {
+      Kv current = Db.findFirstMap("select * from def_resource where id=? and is_del=0", id);
+      ChatErrors.require(current != null, "资源不存在");
+      Row merged = new Row();
+      for (Object key : current.keySet()) {
+        merged.set(key.toString(), current.get(key));
+      }
+      merged.getColumns().putAll(row.getColumns());
+      return merged;
     }
 
     @SuppressWarnings("unchecked")
@@ -465,8 +607,10 @@ public final class BaseCrudHooks {
     @Override
     public void beforeSave(Map<String, Object> body, Row row) {
       check(row, null);
+      checkGeneralAndState(row, null);
+      normalizeMeta(row);
       row.getColumns().putIfAbsent("parent_id", ROOT_ID);
-      fillTree(row, "def_resource", "");
+      BaseTrees.fill(row, "def_resource", "资源");
     }
 
     @Override
@@ -476,8 +620,11 @@ public final class BaseCrudHooks {
 
     @Override
     public void beforeUpdate(Long id, Map<String, Object> body, Row row) {
-      unique(row, "def_resource", "code", id, "【资源编码】：");
-      fillTree(row, "def_resource", "");
+      Row merged = merged(id, row);
+      check(merged, id);
+      checkGeneralAndState(merged, id);
+      normalizeMeta(row);
+      BaseTrees.beforeMove(id, row, "def_resource", "资源");
     }
 
     @Override
