@@ -16,6 +16,6 @@ public class TranslateTextHandler {
     TranslateService service = Aop.get(TranslateService.class);
     String provider = service.resolveProvider(body.getStr("provider"));
     String result = service.translate(body.getStr("text"), provider, body.getStr("source"), body.getStr("target"));
-    return ChatResp.ok(Kv.by("result", result).set("provider", provider));
+    return ChatResp.ok(Kv.by("text", result).set("provider", provider));
   }
 }
