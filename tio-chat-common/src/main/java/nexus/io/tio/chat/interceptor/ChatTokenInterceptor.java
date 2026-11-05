@@ -48,7 +48,7 @@ public class ChatTokenInterceptor implements HttpRequestInterceptor {
       |^/api/im/defServer$\
       |^/api/generator/.+$\
       |^/api/im/defDatasourceConfig(/.*)?$\
-      |^/api/base/(?!(.*/)?(anyone|anyUser|anyTenant)/).+$\
+      |^/api/base/(?!(.*/)?(anyone|anyUser|anyTenant)/)(?!user/(current|updateCurrent|uploadAvatar)$).+$\
       |^/api/base/anyone/defTenant/updateStatus$\
       |^/api/base/extendMsg/anyUser/sendByTemplate$\
       |^/api/im/user/(register|bindOAuth)$\
@@ -56,7 +56,7 @@ public class ChatTokenInterceptor implements HttpRequestInterceptor {
       """.strip());
 
   /** 管理端（systemType=10）的用户除这些接口外，都要校验接口权限，与原网关的 ignore 配置一致 */
-  private static final Pattern NO_URI_CHECK_PATH = Pattern.compile("^/api/([^/]+/)*(anyone|anyUser|anyTenant|anno)/.*");
+  private static final Pattern NO_URI_CHECK_PATH = Pattern.compile("^/api/([^/]+/)*(anyone|anyUser|anyTenant|anno)/.*|^/api/base/user/(current|updateCurrent|uploadAvatar)$");
   private static final int SYSTEM_TYPE_MANAGE = 10;
   private static final String API_PREFIX = "/api";
 
