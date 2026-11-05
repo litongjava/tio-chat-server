@@ -10,6 +10,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -29,6 +31,8 @@ import nexus.io.tio.utils.environment.EnvUtils;
 @Slf4j
 public class GenCodeService {
   private static final Configuration CONFIG = new Configuration(Configuration.VERSION_2_3_31);
+  private static final Pattern SINGLE_IMPORT = Pattern.compile("\\s*import \\{ (\\w+) \\} from '[^']+';?\\s*");
+  private static final Pattern COMMENT = Pattern.compile("^\\s*//.*$", Pattern.MULTILINE);
 
   static {
     CONFIG.setDefaultEncoding(StandardCharsets.UTF_8.name());
@@ -93,7 +97,35 @@ public class GenCodeService {
     Template tpl = CONFIG.getTemplate(template);
     StringWriter writer = new StringWriter();
     tpl.process(model, writer);
-    return writer.toString();
+    String code = writer.toString();
+    return template.contains("/web/") && (template.contains(".ts.") || template.contains(".tsx.")) ? removeUnusedImports(code) : code;
+  }
+
+  /** 模板按字段类型导入工具，实际生成的代码不一定用到，只处理一行导入一个名称的情况 */
+  static String removeUnusedImports(String code) {
+    String[] lines = code.split("\n", -1);
+    String body = COMMENT.matcher(code).replaceAll("");
+    StringBuilder result = new StringBuilder();
+    for (int i = 0; i < lines.length; i++) {
+      Matcher matcher = SINGLE_IMPORT.matcher(lines[i]);
+      boolean unused = false;
+      if (matcher.matches()) {
+        String name = matcher.group(1);
+        Matcher uses = Pattern.compile("\\b" + Pattern.quote(name) + "\\b").matcher(body);
+        int count = 0;
+        while (uses.find()) {
+          count++;
+        }
+        unused = count < 2;
+      }
+      if (!unused) {
+        result.append(lines[i]);
+        if (i < lines.length - 1) {
+          result.append('\n');
+        }
+      }
+    }
+    return result.toString();
   }
 
   /** 一张表（含从表）要生成的全部文件。任何一个模板出错都中止，不留下只生成了一半的代码 */
