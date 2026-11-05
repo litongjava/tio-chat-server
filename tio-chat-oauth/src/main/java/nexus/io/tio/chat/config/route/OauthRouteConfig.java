@@ -21,6 +21,7 @@ import nexus.io.tio.chat.handler.oauth.UpdateAvatarHandler;
 import nexus.io.tio.chat.handler.oauth.UpdateBaseInfoHandler;
 import nexus.io.tio.chat.handler.oauth.UpdateEmailHandler;
 import nexus.io.tio.chat.handler.oauth.UpdateMobileHandler;
+import nexus.io.tio.chat.handler.oauth.ChangePasswordHandler;
 import nexus.io.tio.chat.handler.oauth.UpdatePasswordHandler;
 import nexus.io.tio.chat.handler.oauth.VerifyTokenHandler;
 import nexus.io.tio.http.server.router.HttpRequestRouter;
@@ -32,6 +33,7 @@ public class OauthRouteConfig {
     r.post(P + "/anyTenant/login", new LoginHandler()::handle);
     r.post(P + "/anyTenant/refresh", new RefreshTokenHandler()::handle);
     r.put(P + "/anyTenant/password", new UpdatePasswordHandler()::handle);
+    r.post(P + "/anyUser/updatePassword", new ChangePasswordHandler()::handle);
     r.post(P + "/anyUser/logout", new LogoutHandler()::handle);
     r.get(P + "/anyTenant/verify", new VerifyTokenHandler()::handle);
     r.post(P + "/check", new CheckTokenHandler()::handle);

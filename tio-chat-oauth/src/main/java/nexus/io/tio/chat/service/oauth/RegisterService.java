@@ -9,6 +9,7 @@ import nexus.io.tio.chat.consts.ChatCode;
 import nexus.io.tio.chat.consts.ImConst;
 import nexus.io.tio.chat.model.oauth.PasswordUpdateReq;
 import nexus.io.tio.chat.model.oauth.RegisterParam;
+import nexus.io.tio.chat.utils.AccountUtils;
 import nexus.io.tio.chat.utils.ChatErrors;
 import nexus.io.tio.chat.utils.ParameterValidationUtils;
 
@@ -82,6 +83,20 @@ public class RegisterService {
     }
     Aop.get(CaptchaService.class).check(req.getEmail(), keyOrDefault(req.getKey(), "PASSWORD_EDIT"), req.getCode());
     defUserService.updatePassword(user.getLong("id"), req.getPassword(), user.getStr("salt"));
+    return true;
+  }
+
+  public boolean changePassword(long userId, String oldPassword, String newPassword, String confirmPassword) {
+    ParameterValidationUtils.notBlank(oldPassword, "请输入旧密码");
+    ParameterValidationUtils.notBlank(newPassword, "请输入新密码");
+    ParameterValidationUtils.isTrue(newPassword.equals(confirmPassword), "密码和确认密码不一致");
+    DefUserService users = Aop.get(DefUserService.class);
+    Kv user = users.getById(userId);
+    if (user == null) {
+      throw ChatErrors.of(ChatCode.OPERATION_EX, "用户不存在");
+    }
+    ParameterValidationUtils.isTrue(AccountUtils.hashPassword(oldPassword, user.getStr("salt")).equals(user.getStr("password")), "旧密码错误");
+    users.updatePassword(userId, newPassword, user.getStr("salt"));
     return true;
   }
 
