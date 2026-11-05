@@ -15,6 +15,21 @@ public class HttpClients {
   private static final HttpClient CLIENT = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5))
       .followRedirects(HttpClient.Redirect.NORMAL).build();
 
+  /** 不跟随跳转，否则公网地址可以跳转到内网 */
+  private static final HttpClient NO_REDIRECT_CLIENT = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5))
+      .followRedirects(HttpClient.Redirect.NEVER).build();
+
+  /** 下载用户提交的地址：只允许公网地址 */
+  public static String getPublic(String url) {
+    PublicUrls.require(url);
+    try {
+      HttpRequest request = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(15)).GET().build();
+      return NO_REDIRECT_CLIENT.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)).body();
+    } catch (Exception e) {
+      throw ChatErrors.of("请求失败: " + e.getMessage());
+    }
+  }
+
   public static String get(String url) {
     return send(HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(15)).GET().build());
   }

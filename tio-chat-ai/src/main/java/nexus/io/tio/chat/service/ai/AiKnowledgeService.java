@@ -32,7 +32,7 @@ public class AiKnowledgeService {
 
   public long createDocument(Long knowledgeId, String name, String url, Integer segmentMaxTokens) {
     ChatErrors.require(crud().rawRow(KNOWLEDGE, knowledgeId) != null, "知识库不存在");
-    String content = url == null || url.isBlank() ? "" : HttpClients.get(url);
+    String content = url == null || url.isBlank() ? "" : HttpClients.getPublic(url);
     int maxTokens = segmentMaxTokens == null ? DEFAULT_SEGMENT_TOKENS : segmentMaxTokens;
     long id = crud().create(DOCUMENT, Kv.by("knowledgeId", knowledgeId).set("name", name).set("url", url).set("content", content)
         .set("contentLength", content.length()).set("tokens", content.length()).set("segmentMaxTokens", maxTokens)
@@ -97,7 +97,7 @@ public class AiKnowledgeService {
   }
 
   public List<Kv> splitUrl(String url, Integer segmentMaxTokens) {
-    String content = HttpClients.get(url);
+    String content = HttpClients.getPublic(url);
     List<Kv> result = new ArrayList<>();
     for (String piece : split(content, segmentMaxTokens == null ? DEFAULT_SEGMENT_TOKENS : segmentMaxTokens)) {
       result.add(Kv.by("content", piece).set("contentLength", piece.length()).set("tokens", piece.length()));
