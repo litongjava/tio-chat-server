@@ -20,11 +20,11 @@ import nexus.io.tio.chat.utils.ChatErrors;
 
 /**
  * 读取数据源的表和字段。dsId 为空时读取当前服务的数据库，否则读取 def_datasource_config 中的配置。
- * MySQL 使用 information_schema，其他数据库使用 JDBC 元数据
+ * MySQL 使用 information_schema，PostgreSQL 使用 JDBC 元数据
  */
 class GenDbMeta {
   private static final int LOGIN_TIMEOUT_SECONDS = 5;
-  private static final Pattern URL = Pattern.compile("^jdbc:(mysql|mariadb|postgresql|oracle|sqlserver):.*");
+  private static final Pattern URL = Pattern.compile("^jdbc:(mysql|mariadb|postgresql):.*");
   /** 这些连接参数可以让驱动读取本地文件、反序列化或加载任意类 */
   private static final Pattern UNSAFE_URL = Pattern.compile(
       "(?i).*(allowLoadLocalInfile|autoDeserialize|allowUrlInLocalInfile|queryInterceptors|socketFactory|sslfactory|loggerFile|authenticationPluginClassName).*");
@@ -132,7 +132,7 @@ class GenDbMeta {
     try (ResultSet rs = metaData.getColumns(catalog, schema, tableName, "%")) {
       while (rs.next()) {
         String name = rs.getString("COLUMN_NAME");
-        String type = jdbcType(rs.getString("TYPE_NAME"), rs.getInt("COLUMN_SIZE"), rs.getInt("DECIMAL_DIGITS"));
+        String type = rs.getString("TYPE_NAME");
         result.add(Kv.by("name", name).set("columnType", type).set("dataType", rs.getString("TYPE_NAME")).set("comment", rs.getString("REMARKS"))
             .set("nullable", "YES".equals(rs.getString("IS_NULLABLE"))).set("pk", primaryKeys.contains(name))
             .set("autoIncrement", "YES".equals(rs.getString("IS_AUTOINCREMENT"))).set("columnDef", rs.getString("COLUMN_DEF"))
@@ -142,17 +142,6 @@ class GenDbMeta {
     return result;
   }
 
-  /** Oracle 的 NUMBER 由精度决定类型 */
-  private static String jdbcType(String typeName, int size, int digits) {
-    if (!"number".equalsIgnoreCase(typeName)) {
-      return typeName;
-    }
-    if (digits > 0) {
-      return "decimal";
-    }
-    return size > 9 ? "bigint" : "int";
-  }
-
   /** 把其他数据库的类型名换成 GenColumns 使用的类型名 */
   static String normalizeType(String columnType) {
     String type = columnType.toLowerCase(Locale.ROOT);
@@ -160,13 +149,13 @@ class GenDbMeta {
     case "int8", "bigserial", "serial8" -> "bigint";
     case "int4", "int2", "serial", "serial4", "smallserial", "serial2" -> "int";
     case "bool", "boolean" -> "tinyint(1)";
-    case "numeric", "money", "smallmoney" -> "decimal";
-    case "float8", "double precision", "binary_double" -> "double";
-    case "float4", "real", "binary_float" -> "float";
-    case "timestamptz", "timestamp with time zone", "datetime2", "smalldatetime", "datetimeoffset" -> "datetime";
+    case "numeric", "money" -> "decimal";
+    case "float8", "double precision" -> "double";
+    case "float4", "real" -> "float";
+    case "timestamptz", "timestamp with time zone" -> "datetime";
     case "timetz" -> "time";
-    case "bytea", "image", "varbinary", "raw" -> "blob";
-    case "clob", "nclob", "ntext", "uuid", "uniqueidentifier", "xml" -> "text";
+    case "bytea" -> "blob";
+    case "uuid", "xml" -> "text";
     default -> type;
     };
   }
@@ -197,7 +186,7 @@ class GenDbMeta {
     Kv config = Db.findFirstMap("select * from def_datasource_config where id=? and is_del=0", dsId);
     ChatErrors.require(config != null, "数据源不存在");
     String url = config.getStr("url");
-    ChatErrors.require(url != null && URL.matcher(url).matches(), "代码生成只支持 MySQL、MariaDB、PostgreSQL、Oracle 和 SQL Server 数据源");
+    ChatErrors.require(url != null && URL.matcher(url).matches(), "代码生成只支持 MySQL、MariaDB 和 PostgreSQL 数据源");
     ChatErrors.require(!UNSAFE_URL.matcher(url).matches(), "数据源连接串包含不允许的参数");
     DriverManager.setLoginTimeout(LOGIN_TIMEOUT_SECONDS);
     try {
