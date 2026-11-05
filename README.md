@@ -218,6 +218,13 @@ scripts/smoke-ai-admin.sh   # AI 后台管理接口的管理员校验
 scripts/smoke-history.sh    # 聊天记录检索、文件消息列表
 scripts/smoke-portal.sh     # 回显查询、权限、服务监控、数据源、微信门户、消息重推、徽章、拉黑
 scripts/smoke-msg.sh        # 消息中心：站内通知、邮件、短信渠道、接口日志、定时发送
+scripts/smoke-security.sh   # 密码锁定、接口权限、按所有者隔离的 anyone 接口、脚本执行
+scripts/smoke-base-rules.sh # 基础数据的业务规则：密码、唯一性、树路径、级联、菜单接口、字典
+scripts/smoke-generator.sh  # 代码生成：导入、预览、覆盖策略、生成项目
+scripts/smoke-generator-options.sh # 生成代码的各选项，编译并调用；从 PostgreSQL 导入表
+scripts/smoke-generator-web.sh     # 生成的前端代码通过 Vue 和 TypeScript 编译器
+scripts/smoke-parity.sh     # 调用原后端声明的每个接口，不能有服务器错误和缺失的路由
+scripts/smoke-ha.sh         # 多实例：跨实例投递和通话、实例退出后的定时任务（不在完整回归中）
 scripts/setup-deepseek.sh   # 登记 DeepSeek 模型（见“AI 模型”一节）
 ```
 
@@ -227,13 +234,15 @@ scripts/setup-deepseek.sh   # 登记 DeepSeek 模型（见“AI 模型”一节�
 
 ## 与原后端的差异
 
-用 `scripts/audit-routes.py` 可以对比原后端声明的接口和这里注册的路由。
+用 `scripts/audit-routes.py` 可以对比原后端声明的接口和这里注册的路由，`scripts/audit-parity.py` 会实际调用这些接口，并把响应字段和原后端的返回类对比。对比是静态的，没有同时运行原后端逐个比较响应内容。
 
 有意不同：
 
-- 黑名单管理、服务监控、数据源配置、代码生成和 `/api/im/user/register`、`bindOAuth` 仅管理员可用。`/api/base` 下除路径中带 `anyone`、`anyUser`、`anyTenant` 的接口外也都仅管理员可用，其中用户、角色、消息接口和模板等操作不能开放给普通用户；后台权限目前只区分是否管理员，没有按角色细分。
-- 代码生成的后端模板生成 tio-boot 代码（实体、Service、每个接口一个 Handler、路由配置），不生成 MyBatis 的 Mapper、Manager 和 VO；生成的项目是 tio-boot 项目。前端模板与原后端相同。因此 `getFieldTemplate`、`getDefFileOverrideStrategy` 返回的后端模板项不同。
-- 代码生成的数据源只支持 MySQL，`dsId` 为空或 0 时读取当前服务的数据库。
+- 黑名单管理、服务监控、数据源配置、代码生成和 `/api/im/user/register`、`bindOAuth` 仅管理员可用。`/api/base` 下除路径中带 `anyone`、`anyUser`、`anyTenant` 的接口外也都仅管理员可用，其中用户、角色、消息接口和模板等操作不能开放给普通用户。这些接口也可以通过角色授权：角色被授予的资源配置了接口（`def_resource_api`）时可以访问。管理端用户（`systemType=10`）的每个接口都按这个规则校验，没有配置的接口不能访问，与原网关相同。
+- 比原后端严格的接口：`/anyone/defTenant` 和 `/anyone/extendNotice` 只能访问本人的数据，普通用户不能修改租户状态和通知内容，也不能新增通知；`/anyone/defTenant/updateStatus` 和 `/extendMsg/anyUser/sendByTemplate` 需要管理员或授权（原后端任何人都能审核租户、无需登录发送消息）；`/baseLoginLog/anyone/page` 普通用户只能看到自己的日志；`/anyone/extendNotice/deleteMyNotice` 只删除发给自己的通知。知识库文档的地址不能指向本机和内网。
+- 请求缺少必填字段或格式不对时返回校验错误（`-9`），原后端是服务器错误。原后端的安装脚本没有 `ai_workflow` 表，这里在 AI 服务启动时创建。
+- 代码生成的后端模板生成 tio-boot 代码（实体、Service、每个接口一个 Handler、路由配置），不生成 MyBatis 的 Mapper、Manager 和 VO；生成的项目是 tio-boot 项目。父类决定生成哪些接口，导出是 CSV，缓存只在当前进程内。回显的常量生成在每张表自己的 `XxxEcho` 类中，原后端写入公共的 `EchoApi`、`EchoDictType`。选择 seata 时只加入依赖，与原后端相同。前端模板来自原后端，修正了在 lamp-web 中编译不过的地方，主从结构同时生成从表的接口定义和语言包。因此 `getFieldTemplate`、`getDefFileOverrideStrategy` 返回的后端模板项不同。
+- 代码生成的数据源支持 MySQL、MariaDB、PostgreSQL、Oracle 和 SQL Server，`dsId` 为空或 0 时读取当前服务的数据库。MySQL 和 PostgreSQL 的驱动已包含并经过测试，Oracle 和 SQL Server 需要把驱动加入 classpath，尚未实际连接测试。连接串不能包含读取本地文件或加载类的参数。
 - 再次导入已经导入过的表会覆盖原来的配置，原后端会多出一份。
 - 生成代码时任何一个模板出错都会中止并返回错误，原后端只记日志，压缩包中缺少文件。
 - `/api/generator/defGenProject/anno/getProperties` 只返回 Java 版本、系统和编码，原后端返回全部系统属性。
