@@ -39,6 +39,27 @@
       <artifactId>jfinal-aop</artifactId>
       <version>${jfinalAopVersion}</version>
     </dependency>
+    <!-- 生成的后端代码用到的数据库和 Redis -->
+    <dependency>
+      <groupId>nexus.io</groupId>
+      <artifactId>java-db</artifactId>
+      <version>${javaDbVersion}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.zaxxer</groupId>
+      <artifactId>HikariCP</artifactId>
+      <version>5.1.0</version>
+    </dependency>
+    <dependency>
+      <groupId>com.mysql</groupId>
+      <artifactId>mysql-connector-j</artifactId>
+      <version>8.4.0</version>
+    </dependency>
+    <dependency>
+      <groupId>redis.clients</groupId>
+      <artifactId>jedis</artifactId>
+      <version>${jedisVersion}</version>
+    </dependency>
     <dependency>
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-classic</artifactId>

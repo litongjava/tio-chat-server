@@ -18,6 +18,8 @@ import ${handlerPackage}.${table.entityName}CacheHandler;
 </#if>
 <#if canExport>
 import ${handlerPackage}.${table.entityName}ExportHandler;
+import ${handlerPackage}.${table.entityName}ImportHandler;
+import ${handlerPackage}.${table.entityName}PreviewHandler;
 </#if>
 <#if hasTree>
 import ${handlerPackage}.${table.entityName}TreeHandler;
@@ -52,6 +54,8 @@ public class ${table.entityName}RouteConfig {
 </#if>
 <#if canExport>
     router.post("${routePath}/export", new ${table.entityName}ExportHandler()::handle);
+    router.post("${routePath}/preview", new ${table.entityName}PreviewHandler()::handle);
+    router.post("${routePath}/import", new ${table.entityName}ImportHandler()::handle);
 </#if>
 <#if hasTree>
     router.post("${routePath}/tree", new ${table.entityName}TreeHandler()::handle);

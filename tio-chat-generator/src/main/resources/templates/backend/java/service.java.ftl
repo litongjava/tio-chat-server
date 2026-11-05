@@ -18,9 +18,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-<#if canCache>
-import java.util.concurrent.ConcurrentHashMap;
-</#if>
 
 import com.jfinal.kit.Kv;
 
@@ -28,9 +25,16 @@ import nexus.io.db.activerecord.Db;
 import nexus.io.db.activerecord.DbPro;
 import nexus.io.db.activerecord.Row;
 import nexus.io.model.page.Page;
+<#if canCache>
+import nexus.io.redis.Redis;
+</#if>
+<#if canCache || canExport>
+import nexus.io.tio.utils.json.JsonUtils;
+</#if>
 <#if tenantLine>
 import nexus.io.tio.boot.http.TioRequestContext;
 import nexus.io.tio.http.common.HttpRequest;
+import nexus.io.tio.utils.environment.EnvUtils;
 </#if>
 <#if hasEcho>
 import ${enumPackage}.${table.entityName}Echo;
@@ -60,8 +64,9 @@ public class ${table.entityName}Service {
   /** 字段名 -> 列名，只有这些字段可以用来排序 */
   private static final Map<String, String> COLUMNS = new HashMap<>();
 <#if canCache>
-  /** 单条数据的缓存，只在当前进程内有效，部署多个实例时请改成 Redis */
-  private static final Map<String, Kv> CACHE = new ConcurrentHashMap<>();
+  /** 单条数据的缓存保存在 Redis 的一个 hash 中，多实例共享，需要配置 redis.host */
+  private static final String CACHE_KEY = "gen:cache:" + TABLE;
+  private static final long CACHE_SECONDS = 3600;
 </#if>
 
   static {
@@ -75,10 +80,17 @@ public class ${table.entityName}Service {
   }
 <#if tenantLine>
 
-  /** 网关把当前登录用户的租户写入 tenantId 请求头，没有租户时拒绝访问，不查询其他租户的数据 */
+  /**
+   * 网关把当前登录用户的租户写入 tenantId 请求头，并带上内部密钥（chat.internal.secret），没有密钥的请求是绕过网关直接访问的，
+   * 其中的租户不可信。没有租户时拒绝访问，不查询其他租户的数据
+   */
   private String tenantId() {
     HttpRequest request = TioRequestContext.getRequest();
-    String tenantId = request == null ? null : request.getHeader("tenantid");
+    String secret = EnvUtils.get("chat.internal.secret", "tio-chat-internal");
+    if (request == null || !secret.equals(request.getHeader("x-internal-secret"))) {
+      throw new IllegalStateException("只能通过网关访问");
+    }
+    String tenantId = request.getHeader("tenantid");
     if (tenantId == null || tenantId.isEmpty()) {
       throw new IllegalStateException("缺少租户信息");
     }
@@ -124,9 +136,9 @@ public class ${table.entityName}Service {
 
   public Kv detail(Object id) {
 <#if canCache>
-    Kv cached = CACHE.get(String.valueOf(id));
+    String cached = Redis.call(jedis -> jedis.hget(CACHE_KEY, String.valueOf(id)));
     if (cached != null) {
-      return cached;
+      return JsonUtils.parse(cached, Kv.class);
     }
 </#if>
     Kv row = raw(id);
@@ -135,7 +147,10 @@ public class ${table.entityName}Service {
     }
     Kv vo = toVoList(List.of(row)).get(0);
 <#if canCache>
-    CACHE.put(String.valueOf(id), vo);
+    Redis.call(jedis -> {
+      jedis.hset(CACHE_KEY, String.valueOf(id), JsonUtils.toJson(vo));
+      return jedis.expire(CACHE_KEY, CACHE_SECONDS);
+    });
 </#if>
     return vo;
   }
@@ -233,7 +248,7 @@ public class ${table.entityName}Service {
     db().update(TABLE, PK, row);
 </#if>
 <#if canCache>
-    CACHE.remove(String.valueOf(id));
+    Redis.call(jedis -> jedis.hdel(CACHE_KEY, String.valueOf(id)));
 </#if>
     return detail(id);
   }
@@ -288,7 +303,7 @@ public class ${table.entityName}Service {
 </#if>
     db().update(sql, id<#if tenantLine>, tenantId()</#if>);
 <#if canCache>
-    CACHE.remove(String.valueOf(id));
+    Redis.call(jedis -> jedis.hdel(CACHE_KEY, String.valueOf(id)));
 </#if>
   }
 <#else>
@@ -300,7 +315,7 @@ public class ${table.entityName}Service {
 </#if>
       db().update(sql, id<#if tenantLine>, tenantId()</#if>);
 <#if canCache>
-      CACHE.remove(String.valueOf(id));
+      Redis.call(jedis -> jedis.hdel(CACHE_KEY, String.valueOf(id)));
 </#if>
     }
     return true;
@@ -309,7 +324,7 @@ public class ${table.entityName}Service {
 <#if canCache>
 
   public void clearCache() {
-    CACHE.clear();
+    Redis.call(jedis -> jedis.del(CACHE_KEY));
   }
 </#if>
 <#if canExport>
@@ -326,6 +341,98 @@ public class ${table.entityName}Service {
 </#list>
     }
     return csv.toString();
+  }
+
+  public String exportHtml(${table.entityName} query) {
+    StringBuilder html = new StringBuilder("<table><thead><tr>");
+<#list modelFields as field>
+    html.append("<th>").append(escapeHtml("${(field.swaggerComment?has_content?then(field.swaggerComment, field.name))?j_string}")).append("</th>");
+</#list>
+    html.append("</tr></thead><tbody>");
+    for (Kv row : query(query)) {
+      html.append("<tr>");
+<#list modelFields as field>
+      html.append("<td>").append(escapeHtml(row.get("${field.javaField}"))).append("</td>");
+</#list>
+      html.append("</tr>");
+    }
+    return html.append("</tbody></table>").toString();
+  }
+
+  private String escapeHtml(Object value) {
+    String text = value == null ? "" : String.valueOf(value);
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
+  }
+
+  /**
+   * 导入导出格式的 CSV：第一行是表头，列的顺序和导出相同。主键列留空时生成新数据，全部在一个事务里
+   *
+   * @return 导入的行数
+   */
+  public int importCsv(String csv) {
+    List<List<String>> rows = parseCsv(csv.startsWith("\uFEFF") ? csv.substring(1) : csv);
+    if (rows.size() < 2) {
+      return 0;
+    }
+    int[] imported = { 0 };
+    db().tx(() -> {
+      for (List<String> values : rows.subList(1, rows.size())) {
+        Kv data = Kv.create();
+<#list modelFields as field>
+<#if !field.isPk && !field.fill?? && field.modelType != "byte[]">
+        if (${field?index} < values.size() && !values.get(${field?index}).isEmpty()) {
+          data.set("${field.javaField}", unescapeCell(values.get(${field?index})));
+        }
+</#if>
+</#list>
+        save(JsonUtils.parse(JsonUtils.toJson(data), ${table.entityName}.class));
+        imported[0]++;
+      }
+      return true;
+    });
+    return imported[0];
+  }
+
+  /** 去掉导出时为避免公式执行加的单引号 */
+  private String unescapeCell(String value) {
+    return value.length() > 1 && value.charAt(0) == '\'' && "=+-@".indexOf(value.charAt(1)) >= 0 ? value.substring(1) : value;
+  }
+
+  private List<List<String>> parseCsv(String csv) {
+    List<List<String>> rows = new ArrayList<>();
+    List<String> row = new ArrayList<>();
+    StringBuilder cell = new StringBuilder();
+    boolean quoted = false;
+    for (int i = 0; i < csv.length(); i++) {
+      char c = csv.charAt(i);
+      if (quoted) {
+        if (c == '"' && i + 1 < csv.length() && csv.charAt(i + 1) == '"') {
+          cell.append('"');
+          i++;
+        } else if (c == '"') {
+          quoted = false;
+        } else {
+          cell.append(c);
+        }
+      } else if (c == '"') {
+        quoted = true;
+      } else if (c == ',') {
+        row.add(cell.toString());
+        cell.setLength(0);
+      } else if (c == '\n') {
+        row.add(cell.toString());
+        cell.setLength(0);
+        rows.add(row);
+        row = new ArrayList<>();
+      } else if (c != '\r') {
+        cell.append(c);
+      }
+    }
+    if (cell.length() > 0 || !row.isEmpty()) {
+      row.add(cell.toString());
+      rows.add(row);
+    }
+    return rows;
   }
 
   private String cell(Object value) {

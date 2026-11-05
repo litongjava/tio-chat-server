@@ -64,7 +64,7 @@ echo "lombok chain: $(grep -c 'Accessors(chain = true)' "$(find "$WORK/src" -nam
 echo "no service methods with NONE: $(grep -c 'public Kv' "$(find "$WORK/src" -name "$(ent $NO)Service.java")" || true)"
 "$JAVA" -cp "$WORK/classes:$JAR" DemoMain --nacos.discovery.enabled=false --server.port=$PORT > "$ROOT/logs/services/genopt.log" 2>&1 & DEMO=$!
 for _ in $(seq 1 40); do (echo > /dev/tcp/127.0.0.1/$PORT) 2>/dev/null && break; sleep 1; done; sleep 2
-call() { curl -s -X"$2" "http://localhost:$PORT/api/demo/$(lower $(ent $1))$3" -H 'Content-Type: application/json' -H "token: $TA" ${5:+-H "tenantId: $5"} ${4:+-d "$4"}; }
+call() { curl -s -X"$2" "http://localhost:$PORT/api/demo/$(lower $(ent $1))$3" -H 'Content-Type: application/json' -H "token: $TA" ${5:+-H "tenantId: $5"} ${5:+-H "x-internal-secret: tio-chat-internal"} ${4:+-d "$4"}; }
 status() { curl -s -o /dev/null -w '%{http_code}' -X"$2" "http://localhost:$PORT/api/demo/$(lower $(ent $1))$3" -H 'Content-Type: application/json' -H "token: $TA" -d "${4:-{\}}"; }
 count() { $MYSQL -e "$1" 2>/dev/null; }
 
@@ -107,9 +107,17 @@ echo "none:  page $(status $NO POST /page) save $(status $NO POST '')"
 echo "export only with poi: $(status $RO POST /export) $(status $PO POST /export)"
 call $PO POST "" '{"name":"=cmd(\"x\")"}' >/dev/null
 call $PO POST /export '{"model":{}}' | python3 -c "import sys;print(sys.stdin.read().replace('﻿','').strip().splitlines())"
+call $PO POST /preview '{"model":{}}' | json "d['code'], d['data'].startswith('<table>'), '=cmd' in d['data']"
+call $PO POST "" '{"name":"<b>x</b>"}' >/dev/null
+call $PO POST /preview '{"model":{}}' | json "'escaped:', '<b>' not in d['data'], '&lt;b&gt;' in d['data']"
+printf 'id,name\n,csv1\n,"a,""b"""\n,'"'"'=sum\n' > "$WORK/in.csv"
+curl -s -XPOST "http://localhost:$PORT/api/demo/$(lower $(ent $PO))/import" -H "token: $TA" -F "file=@$WORK/in.csv" | json "'imported:', d['code'], d['data']"
+echo "rows: $(count "select count(*) from $PO where name in ('csv1','a,\"b\"','=sum')")"
+curl -s -o /dev/null -w 'import without poi: %{http_code}\n' -XPOST "http://localhost:$PORT/api/demo/$(lower $(ent $RO))/import" -H "token: $TA" -F "file=@$WORK/in.csv"
 CID=$(call $CA POST "" '{"name":"before"}' | json "d['data']['id']")
 call $CA GET "/detail?id=$CID" >/dev/null; count "update $CA set name='changed' where id=$CID" >/dev/null
 echo "cached: $(call $CA GET "/detail?id=$CID" | json "d['data']['name']")"
+echo "in redis: $($REDIS hexists gen:cache:$CA $CID)"
 call $CA POST /refreshCache | json "d['code'], d['data']"
 echo "after refresh: $(call $CA GET "/detail?id=$CID" | json "d['data']['name']")"
 call $CA PUT "" "{\"id\":\"$CID\",\"name\":\"updated\"}" >/dev/null
@@ -125,6 +133,7 @@ call $TE PUT "" "{\"id\":\"$T1\",\"name\":\"hack\"}" 2 | json "d['code'], d['msg
 call $TE DELETE "" "[\"$T1\"]" 2 >/dev/null
 echo "kept after delete by another tenant: $(count "select name from $TE where id=$T1")"
 echo "no tenant header: $(call $TE POST /page '{}' | json "d['code']")"
+echo "tenant without the gateway secret: $(curl -s -XPOST "http://localhost:$PORT/api/demo/$(lower $(ent $TE))/page" -H 'Content-Type: application/json' -H "token: $TA" -H 'tenantId: 1' -d '{}' | json "d['code']")"
 set_table $TE '"isTenantLine":true' >/dev/null
 curl -s "$HOST$G/previewCode?id=$(id_of $TE)&template=BACKEND" -XPOST -H "token: $TA" | json "'tenant_id=?' in ''.join(v for k,v in d['data'].items() if 'service.java' in k)"
 

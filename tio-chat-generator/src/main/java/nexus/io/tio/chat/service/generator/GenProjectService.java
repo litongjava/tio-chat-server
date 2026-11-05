@@ -108,6 +108,8 @@ public class GenProjectService {
     model.put("applicationName", applicationName == null || applicationName.isEmpty() ? artifact : applicationName);
     model.put("tioBootVersion", EnvUtils.get("generator.tio-boot-version", "2.1.9"));
     model.put("tioBootCloudVersion", EnvUtils.get("generator.tio-boot-cloud-version", "1.0.0"));
+    model.put("javaDbVersion", EnvUtils.get("generator.java-db-version", "1.6.2"));
+    model.put("jedisVersion", EnvUtils.get("generator.jedis-version", "4.3.1"));
     model.put("seata", Boolean.TRUE.equals(req.getSeata()));
     model.put("seataVersion", EnvUtils.get("generator.seata-version", "2.0.0"));
     model.put("jfinalAopVersion", EnvUtils.get("generator.jfinal-aop-version", JFINAL_AOP_VERSION));

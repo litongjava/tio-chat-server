@@ -52,6 +52,8 @@ final class GenTemplates {
     BACKEND_FIELDS.put("treeHandler", JAVA + "treeHandler.java.ftl");
     BACKEND_FIELDS.put("exportHandler", JAVA + "exportHandler.java.ftl");
     BACKEND_FIELDS.put("cacheHandler", JAVA + "cacheHandler.java.ftl");
+    BACKEND_FIELDS.put("previewHandler", JAVA + "previewHandler.java.ftl");
+    BACKEND_FIELDS.put("importHandler", JAVA + "importHandler.java.ftl");
     BACKEND_FIELDS.put("echo", ECHO);
     BACKEND_FIELDS.put("routeConfig", JAVA + "routeConfig.java.ftl");
     WEB_FIELDS.put("api", VBEN + "simple/typescript/api.ts.ftl");
@@ -102,7 +104,7 @@ final class GenTemplates {
       list.add(JAVA + "cacheHandler.java.ftl");
     }
     if (isOn(model, "canExport")) {
-      list.add(JAVA + "exportHandler.java.ftl");
+      addAll(list, JAVA, "exportHandler.java.ftl", "previewHandler.java.ftl", "importHandler.java.ftl");
     }
     if (isOn(model, "hasTree")) {
       list.add(JAVA + "treeHandler.java.ftl");
@@ -260,6 +262,8 @@ final class GenTemplates {
     case "treeHandler.java.ftl" -> root + "handler" + child + "/" + entity + "TreeHandler.java";
     case "exportHandler.java.ftl" -> root + "handler" + child + "/" + entity + "ExportHandler.java";
     case "cacheHandler.java.ftl" -> root + "handler" + child + "/" + entity + "CacheHandler.java";
+    case "previewHandler.java.ftl" -> root + "handler" + child + "/" + entity + "PreviewHandler.java";
+    case "importHandler.java.ftl" -> root + "handler" + child + "/" + entity + "ImportHandler.java";
     default -> throw ChatErrors.of("未知模板：" + template);
     };
   }
