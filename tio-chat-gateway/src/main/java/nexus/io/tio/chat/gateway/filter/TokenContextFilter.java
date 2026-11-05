@@ -4,6 +4,7 @@ import nexus.io.tio.boot.cloud.gateway.GatewayExchange;
 import nexus.io.tio.boot.cloud.gateway.filter.GatewayFilterChain;
 import nexus.io.tio.boot.cloud.gateway.filter.GlobalFilter;
 import nexus.io.tio.chat.gateway.model.GatewaySession;
+import nexus.io.tio.utils.environment.EnvUtils;
 import nexus.io.tio.chat.gateway.service.SessionService;
 import nexus.io.tio.http.common.HttpResponse;
 
@@ -13,6 +14,7 @@ import nexus.io.tio.http.common.HttpResponse;
  * 错误码和提示与单进程运行时一致。
  */
 public class TokenContextFilter implements GlobalFilter {
+  private static final String INTERNAL_SECRET_HEADER = "x-internal-secret";
   private static final String[] IDENTITY_HEADERS = { "userid", "uid", "tenantid", "systemtype" };
 
   private final SessionService sessionService;
@@ -31,6 +33,8 @@ public class TokenContextFilter implements GlobalFilter {
     for (String header : IDENTITY_HEADERS) {
       exchange.removeRequestHeader(header);
     }
+    // 下游服务用它确认请求来自网关，身份请求头才可信；客户端传的值在这里被覆盖
+    exchange.setRequestHeader(INTERNAL_SECRET_HEADER, EnvUtils.get("chat.internal.secret", "tio-chat-internal"));
     GatewaySession session = sessionService.find(token(exchange));
     if (session != null) {
       setHeader(exchange, "userId", session.getUserId());
