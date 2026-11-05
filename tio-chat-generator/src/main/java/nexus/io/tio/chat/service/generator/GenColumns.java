@@ -27,7 +27,7 @@ final class GenColumns {
 
   /** 字段类型：Java 类型、TS 类型、vben 组件、vxe 组件、soybean 组件 */
   private static String[] type(String columnType) {
-    String t = columnType.toLowerCase(Locale.ROOT);
+    String t = GenDbMeta.normalizeType(columnType);
     if (t.contains("char") || t.contains("text") || t.contains("json") || t.contains("enum")) {
       return new String[] { "String", "string", "Input", "$input", "text" };
     }
@@ -88,6 +88,10 @@ final class GenColumns {
       }
     }
     return sb.toString();
+  }
+
+  static String constantName(String column) {
+    return column.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9_]", "_");
   }
 
   static String capitalize(String text) {
