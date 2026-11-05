@@ -1,7 +1,7 @@
 package nexus.io.tio.chat.handler.system;
 
 import nexus.io.jfinal.aop.Aop;
-import nexus.io.tio.chat.service.system.StorageService;
+import nexus.io.tio.chat.service.common.StorageService;
 import nexus.io.tio.chat.utils.ChatResp;
 import nexus.io.tio.http.common.HttpRequest;
 import nexus.io.tio.http.common.HttpResponse;

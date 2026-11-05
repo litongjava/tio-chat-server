@@ -1,5 +1,6 @@
 package nexus.io.tio.chat.utils;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -27,6 +28,17 @@ public class HttpClients {
       return NO_REDIRECT_CLIENT.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)).body();
     } catch (Exception e) {
       throw ChatErrors.of("请求失败: " + e.getMessage());
+    }
+  }
+
+  /** 上传到预签名地址，对象存储返回错误时抛出异常 */
+  public static void putBytes(String url, byte[] data) {
+    try {
+      HttpRequest request = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(30)).PUT(HttpRequest.BodyPublishers.ofByteArray(data)).build();
+      int status = CLIENT.send(request, HttpResponse.BodyHandlers.discarding()).statusCode();
+      ChatErrors.require(status >= 200 && status < 300, "文件保存失败：" + status);
+    } catch (IOException | InterruptedException e) {
+      throw ChatErrors.of("文件保存失败: " + e.getMessage());
     }
   }
 

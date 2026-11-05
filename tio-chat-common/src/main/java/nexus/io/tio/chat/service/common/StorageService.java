@@ -1,4 +1,4 @@
-package nexus.io.tio.chat.service.system;
+package nexus.io.tio.chat.service.common;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -14,8 +14,8 @@ import javax.crypto.spec.SecretKeySpec;
 import com.jfinal.kit.Kv;
 
 import nexus.io.jfinal.aop.Aop;
-import nexus.io.tio.chat.service.common.SysConfigService;
 import nexus.io.tio.chat.utils.ChatErrors;
+import nexus.io.tio.chat.utils.HttpClients;
 import nexus.io.tio.utils.json.JsonUtils;
 
 /**
@@ -38,6 +38,19 @@ public class StorageService {
     default:
       throw ChatErrors.of("不支持的存储引擎: " + engine);
     }
+  }
+
+  /**
+   * 由服务端保存文件，用于要校验内容的上传，例如头像。七牛需要客户端用 token 直传
+   *
+   * @return 下载地址
+   */
+  public String upload(String scene, String fileName, byte[] data) {
+    SysConfigService config = Aop.get(SysConfigService.class);
+    ChatErrors.require("minio".equals(config.get("storageDefault")), "当前存储引擎不支持服务端上传，请配置 MinIO");
+    Kv token = token(scene, fileName);
+    HttpClients.putBytes(token.getStr("uploadUrl"), data);
+    return token.getStr("downloadUrl");
   }
 
   /**
