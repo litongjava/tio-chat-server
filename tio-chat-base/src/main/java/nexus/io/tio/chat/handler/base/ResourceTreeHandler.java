@@ -14,6 +14,10 @@ import nexus.io.tio.http.common.HttpResponse;
 public class ResourceTreeHandler {
   public HttpResponse handle(HttpRequest request) {
     Kv body = ParameterValidationUtils.bodyKv(request);
+    Long applicationId = ParameterValidationUtils.optionalLong(request, "applicationId");
+    if (applicationId != null && body.get("applicationId") == null) {
+      body.set("applicationId", applicationId);
+    }
     CrudDef def = CrudDef.of("/defResource", "def_resource").echo("resourceType", "dict:TENANT_RESOURCE_TYPE")
         .echo("openWith", "dict:TENANT_RESOURCE_OPEN_WITH").echo("dataScope", "dict:TENANT_RESOURCE_DATA_SCOPE");
     return ChatResp.ok(Aop.get(BaseAdminService.class).tree(def, body));
