@@ -71,9 +71,11 @@ final class GenColumns {
     if (comment == null) {
       return "";
     }
-    String text = comment.trim();
+    // 枚举定义里也有分号，要先去掉这些声明，只留下字段说明
+    String text = ECHO.matcher(ENUM.matcher(comment).replaceAll("")).replaceAll("");
+    text = DICT_ITEMS.matcher(text).replaceAll("").trim();
     int semicolon = text.indexOf(';');
-    return (semicolon >= 0 ? text.substring(0, semicolon) : text).replace("\n", " ");
+    return (semicolon >= 0 ? text.substring(0, semicolon) : text).replace("\n", " ").trim();
   }
 
   static String javaField(String column) {

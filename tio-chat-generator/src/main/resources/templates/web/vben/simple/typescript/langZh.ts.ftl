@@ -1,6 +1,6 @@
 export default {
-  table: { title: '${table.swaggerComment!}列表' },
+  table: { title: '${(table.swaggerComment!)?js_string}列表' },
 <#list allFields as field>
-  ${field.javaField}: '${field.swaggerComment!}',
+  ${field.javaField}: '${(field.swaggerComment!)?js_string}',
 </#list>
 };
