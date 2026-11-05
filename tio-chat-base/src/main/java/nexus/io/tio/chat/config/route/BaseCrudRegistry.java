@@ -10,6 +10,12 @@ import nexus.io.tio.chat.service.base.crud.CrudDef;
  */
 public class BaseCrudRegistry {
 
+  /** 租户状态：审核中，普通用户申请的租户由管理员审核 */
+  private static final int WAITING_TENANT = 1;
+  /** 注册方式：用户自己申请 */
+  private static final int TENANT_REGISTER = 1;
+  /** 申请时还没有套餐和期限，这些列不能为空，由管理员审核时修改 */
+  private static final String TENANT_NOT_EXPIRE = "2099-12-31 23:59:59";
   private static final List<CrudDef> DEFS = build();
 
   public static List<CrudDef> defs() {
@@ -38,7 +44,10 @@ public class BaseCrudRegistry {
     defs.add(CrudDef.of("/defDictItem", "def_dict").like("parent_key", "classify", "key_", "name", "remark", "icon", "css_style", "css_class"));
     defs.add(CrudDef.of("/defLoginLog", "def_login_log").like("request_ip", "nick_name", "username", "description", "login_date", "ua", "browser", "browser_version", "operating_system", "location", "status").echo("status", "dict:SYSTEM_LOGIN_STATUS"));
     defs.add(CrudDef.of("/defParameter", "def_parameter").like("key_", "value", "name", "remarks", "param_type").cache());
-    defs.add(CrudDef.of("/anyone/defTenant", "def_tenant").echo("status", "dict:TENANT_TENANT_STATUS").cache());
+    defs.add(CrudDef.of("/anyone/defTenant", "def_tenant").echo("status", "dict:TENANT_TENANT_STATUS").cache().ownedBy("create_by", false)
+        .protect("status", "state", "register_type", "package_id", "expire_time", "account_count", "contact_user_id").userDefault("status", WAITING_TENANT)
+        .userDefault("register_type", TENANT_REGISTER).userDefault("package_id", 0L).userDefault("account_count", 0).userDefault("expire_time", TENANT_NOT_EXPIRE)
+        .required("name", "企业名称不能为空").required("contact_name", "联系人不能为空"));
     defs.add(CrudDef.of("/defTenant", "def_tenant").echo("status", "dict:TENANT_TENANT_STATUS").cache());
     defs.add(CrudDef.of("/defUser", "def_user").like("username", "nick_name", "avatar", "email", "mobile", "id_card", "work_describe").hidden("password", "salt").echo("sex", "dict:GLOBAL_SEX").echo("nation", "dict:GLOBAL_NATION").echo("education", "dict:GLOBAL_EDUCATION").cache().excel());
     defs.add(CrudDef.of("/baseEmployee", "base_employee").like("name", "position_status", "active_status").hidden("password").echo("positionId", "position").echo("orgIdList", "org").echo("lastCompanyId", "org").echo("positionStatus", "dict:BASE_POSITION_STATUS").cache());
@@ -50,7 +59,8 @@ public class BaseCrudRegistry {
     defs.add(CrudDef.of("/extendInterfaceLog", "extend_interface_log").like("name"));
     defs.add(CrudDef.of("/extendInterfaceLogging", "extend_interface_logging").like("status", "params", "result", "error_msg").echo("status", "dict:MSG_INTERFACE_LOGGING_STATUS"));
     defs.add(CrudDef.of("/extendMsg", "extend_msg").like("type", "param", "title", "content", "biz_type", "author", "remind_mode").echo("type", "dict:MSG_TEMPLATE_TYPE").echo("remindMode", "dict:NOTICE_REMIND_MODE").customGet());
-    defs.add(CrudDef.of("/anyone/extendNotice", "extend_notice").like("msg_id", "biz_id", "biz_type", "title", "content", "author", "url").echo("remindMode", "dict:NOTICE_REMIND_MODE").echo("target", "dict:NOTICE_TARGET"));
+    defs.add(CrudDef.of("/anyone/extendNotice", "extend_notice").like("msg_id", "biz_id", "biz_type", "title", "content", "author", "url").echo("remindMode", "dict:NOTICE_REMIND_MODE").echo("target", "dict:NOTICE_TARGET")
+        .ownedBy("recipient_id", true).adminCreateOnly().protect("msg_id", "biz_id", "biz_type", "remind_mode", "title", "content", "author", "url", "target_"));
     return defs;
   }
 }

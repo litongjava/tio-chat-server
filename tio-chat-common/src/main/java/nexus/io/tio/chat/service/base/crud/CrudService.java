@@ -15,6 +15,7 @@ import nexus.io.db.activerecord.Db;
 import nexus.io.db.activerecord.Row;
 import nexus.io.jfinal.aop.Aop;
 import nexus.io.tio.chat.context.LoginContext;
+import nexus.io.tio.chat.facade.Facades;
 import nexus.io.tio.chat.context.LoginSession;
 import nexus.io.tio.chat.model.common.IPageResp;
 import nexus.io.tio.chat.utils.ChatErrors;
@@ -33,7 +34,13 @@ public class CrudService {
   // ---------------------------------------------------------------- 写入
 
   public Kv save(CrudDef def, Map<String, Object> body) {
+    requireCreate(def);
     Row row = toRow(def, body, true);
+    def.getRequiredColumns().forEach((column, message) -> {
+      Object value = row.get(column);
+      ChatErrors.require(value != null && !value.toString().isBlank(), message);
+    });
+    applyUserDefaults(def, row);
     if (row.get("id") == null) {
       row.set("id", SnowflakeIdUtils.id());
     }
@@ -46,6 +53,7 @@ public class CrudService {
   }
 
   public Kv copy(CrudDef def, Long id) {
+    requireCreate(def);
     Kv source = rawRow(def, id);
     ChatErrors.require(source != null, "数据不存在");
     Row row = new Row();
@@ -66,6 +74,9 @@ public class CrudService {
   public Kv update(CrudDef def, Map<String, Object> body) {
     Long id = Values.toLong(body.get("id"));
     ChatErrors.require(id != null, "id不能为空");
+    if (restricted(def)) {
+      ChatErrors.require(rawRow(def, id) != null, "数据不存在");
+    }
     Row row = toRow(def, body, false);
     row.remove("id");
     if (TableMeta.hasColumn(def.getTable(), "update_by") && operator() != null) {
@@ -94,11 +105,16 @@ public class CrudService {
     if (ids == null || ids.isEmpty()) {
       return true;
     }
-    String in = Values.placeholders(ids.size());
+    List<Object> params = new ArrayList<>(ids);
+    String where = " where id in (" + Values.placeholders(ids.size()) + ")";
+    if (restricted(def)) {
+      where += " and " + def.getOwnerColumn() + "=?";
+      params.add(owner(def));
+    }
     if (TableMeta.hasColumn(def.getTable(), "is_del")) {
-      Db.update("update " + def.getTable() + " set is_del=1 where id in (" + in + ")", ids.toArray());
+      Db.update("update " + def.getTable() + " set is_del=1" + where, params.toArray());
     } else {
-      Db.update("delete from " + def.getTable() + " where id in (" + in + ")", ids.toArray());
+      Db.update("delete from " + def.getTable() + where, params.toArray());
     }
     return true;
   }
@@ -133,8 +149,16 @@ public class CrudService {
     if (ids == null || ids.isEmpty()) {
       return result;
     }
+    List<Object> params = new ArrayList<>(ids);
     String sql = "select * from " + def.getTable() + " where id in (" + Values.placeholders(ids.size()) + ")";
-    for (Kv row : Db.findMaps(sql, ids.toArray())) {
+    if (TableMeta.hasColumn(def.getTable(), "is_del")) {
+      sql += " and is_del=0";
+    }
+    if (restricted(def)) {
+      sql += " and " + def.getOwnerColumn() + "=?";
+      params.add(owner(def));
+    }
+    for (Kv row : Db.findMaps(sql, params.toArray())) {
       result.add(toVo(def, row));
     }
     return result;
@@ -186,6 +210,9 @@ public class CrudService {
     if (TableMeta.hasColumn(def.getTable(), "is_del")) {
       sql += " and is_del=0";
     }
+    if (restricted(def)) {
+      return Db.findFirstMap(sql + " and " + def.getOwnerColumn() + "=?", id, owner(def));
+    }
     return Db.findFirstMap(sql, id);
   }
 
@@ -193,7 +220,7 @@ public class CrudService {
     Row row = new Row();
     for (Map.Entry<String, Object> entry : body.entrySet()) {
       String column = TableMeta.column(def.getTable(), entry.getKey());
-      if (column == null || isAudit(column)) {
+      if (column == null || isAudit(column) || (!insert && column.equals(def.getOwnerColumn())) || writeProtected(def, column)) {
         continue;
       }
       Object value = entry.getValue();
@@ -203,6 +230,36 @@ public class CrudService {
       row.set(column, value);
     }
     return row;
+  }
+
+  private void requireCreate(CrudDef def) {
+    ChatErrors.require(!def.isAdminCreateOnly() || isAdmin(), "无此权限");
+  }
+
+  private void applyUserDefaults(CrudDef def, Row row) {
+    if (!def.getUserDefaults().isEmpty() && !isAdmin()) {
+      def.getUserDefaults().forEach(row::set);
+    }
+  }
+
+  private boolean writeProtected(CrudDef def, String column) {
+    return def.getProtectedColumns().contains(column) && !isAdmin();
+  }
+
+  /** 这个资源按所有者隔离，并且当前用户不是管理员 */
+  private boolean restricted(CrudDef def) {
+    return def.getOwnerColumn() != null && !isAdmin();
+  }
+
+  private boolean isAdmin() {
+    LoginSession session = LoginContext.get();
+    return session != null && Facades.base().isAdmin(session.getUid());
+  }
+
+  private Long owner(CrudDef def) {
+    LoginSession session = LoginContext.get();
+    ChatErrors.require(session != null, "请先登录");
+    return def.isOwnerByUid() ? session.getUid() : session.getUserId();
   }
 
   private boolean isAudit(String column) {
@@ -218,6 +275,10 @@ public class CrudService {
     StringBuilder where = new StringBuilder(" where 1=1");
     if (TableMeta.hasColumn(def.getTable(), "is_del")) {
       where.append(" and is_del=0");
+    }
+    if (def.getOwnerColumn() != null) {
+      where.append(" and ").append(def.getOwnerColumn()).append("=?");
+      params.add(owner(def));
     }
     if (model != null) {
       for (Map.Entry<String, Object> entry : model.entrySet()) {

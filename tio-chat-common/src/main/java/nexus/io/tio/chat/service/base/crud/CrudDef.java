@@ -19,6 +19,17 @@ public class CrudDef {
   private boolean excel;
   /** 单条查询由扩展接口提供 */
   private boolean customGet;
+  /** 普通用户只能访问这一列等于自己的数据，分页和列表查询对管理员也只返回本人的数据 */
+  private String ownerColumn;
+  /** 所有者列保存的是 im 用户 id，否则是登录用户 id */
+  private boolean ownerByUid;
+  /** 普通用户不能写入的列 */
+  private final Set<String> protectedColumns = new HashSet<>();
+  /** 普通用户新增时写入的固定值 */
+  private final Map<String, Object> userDefaults = new HashMap<>();
+  private boolean adminCreateOnly;
+  /** 新增时必须填写的列：列 -> 提示 */
+  private final Map<String, String> requiredColumns = new HashMap<>();
 
   public CrudDef(String path, String table) {
     this.path = path;
@@ -61,6 +72,58 @@ public class CrudDef {
   public CrudDef customGet() {
     this.customGet = true;
     return this;
+  }
+
+  public CrudDef ownedBy(String column, boolean byUid) {
+    this.ownerColumn = column;
+    this.ownerByUid = byUid;
+    return this;
+  }
+
+  public CrudDef protect(String... columns) {
+    for (String column : columns) {
+      protectedColumns.add(column);
+    }
+    return this;
+  }
+
+  public CrudDef userDefault(String column, Object value) {
+    userDefaults.put(column, value);
+    return this;
+  }
+
+  public CrudDef adminCreateOnly() {
+    this.adminCreateOnly = true;
+    return this;
+  }
+
+  public CrudDef required(String column, String message) {
+    requiredColumns.put(column, message);
+    return this;
+  }
+
+  public Map<String, String> getRequiredColumns() {
+    return requiredColumns;
+  }
+
+  public String getOwnerColumn() {
+    return ownerColumn;
+  }
+
+  public boolean isOwnerByUid() {
+    return ownerByUid;
+  }
+
+  public Set<String> getProtectedColumns() {
+    return protectedColumns;
+  }
+
+  public Map<String, Object> getUserDefaults() {
+    return userDefaults;
+  }
+
+  public boolean isAdminCreateOnly() {
+    return adminCreateOnly;
   }
 
   public boolean isCustomGet() {
