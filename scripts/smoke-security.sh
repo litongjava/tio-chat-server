@@ -33,6 +33,74 @@ echo "an ordinary user keeps the anyone APIs:"
 api POST /api/base/anyone/extendNotice/myNotice "$T" '{"size":1}' | json "d['code']"
 api POST /api/base/baseLoginLog/anyone/page "$T" '{"size":1}' | json "d['code']"
 
+echo "== anyone APIs only reach the data of the user"
+read T2 U2 < <(register_user "other$TS@example.com")
+api POST /api/base/anyone/defTenant "$T" "{\"name\":\"t$TS\"}" | json "'no contact:', d['code'], d['msg']"
+TEN=$(api POST /api/base/anyone/defTenant "$T" "{\"name\":\"t$TS\",\"contactName\":\"c\",\"status\":0}")
+TID=$(echo "$TEN" | json "d['data']['id']"); echo "$TEN" | json "'new tenant is waiting:', d['code'], d['data']['status']"
+api POST /api/base/anyone/defTenant/page "$T" '{"size":5}' | json "'mine:', d['data']['total']"
+api POST /api/base/anyone/defTenant/page "$T2" '{"size":5}' | json "'other:', d['data']['total']"
+api GET "/api/base/anyone/defTenant/$TID" "$T2" | json "'other get:', d['data']"
+api POST /api/base/anyone/defTenant/findByIds "$T2" "[\"$TID\"]" | json "'other findByIds:', d['data']"
+api PUT /api/base/anyone/defTenant "$T2" "{\"id\":\"$TID\",\"name\":\"hack\"}" | json "'other update:', d['msg']"
+api DELETE /api/base/anyone/defTenant "$T2" "[\"$TID\"]" >/dev/null
+echo "name after the attempts: $($MYSQL -e "select name='t$TS', is_del from def_tenant where id=$TID" 2>/dev/null)"
+api PUT /api/base/anyone/defTenant "$T" "{\"id\":\"$TID\",\"name\":\"t2$TS\",\"status\":0}" | json "'own update:', d['code'], d['data']['status']"
+api POST "/api/base/anyone/defTenant/updateStatus?id=$TID&status=0" "$T" | json "'approve own:', d['code']"
+api POST "/api/base/anyone/defTenant/updateStatus?id=$TID&status=0" "$TA" | json "'approve by admin:', d['code'], d['data']"
+echo "status: $($MYSQL -e "select status from def_tenant where id=$TID" 2>/dev/null)"
+api POST "/api/base/anyone/defTenant/updateStatus?id=$TID" "$TA" | json "'no status:', d['code'], d['msg']"
+$MYSQL -e "update def_tenant set is_del=1 where id=$TID" 2>/dev/null
+api POST /api/base/anyone/extendNotice "$T" "{\"recipientId\":\"$U2\",\"title\":\"fake\"}" | json "'forge a notice:', d['msg']"
+NOT=$(api POST /api/base/anyone/extendNotice "$TA" "{\"recipientId\":\"$U\",\"title\":\"hello\",\"remindMode\":\"02\"}" | json "d['data']['id']")
+api POST /api/base/anyone/extendNotice/page "$T" '{"size":5}' | json "'own notices:', d['data']['total']"
+api POST /api/base/anyone/extendNotice/page "$T2" '{"size":5}' | json "'other notices:', d['data']['total']"
+api GET "/api/base/anyone/extendNotice/$NOT" "$T2" | json "'other reads it:', d['data']"
+api PUT /api/base/anyone/extendNotice "$T" "{\"id\":\"$NOT\",\"title\":\"changed\",\"isRead\":true}" | json "'own update:', d['data']['title'], d['data']['isRead']"
+api DELETE /api/base/anyone/extendNotice "$T2" "[\"$NOT\"]" >/dev/null
+api DELETE /api/base/anyone/extendNotice/deleteMyNotice "$T2" "[\"$NOT\"]" >/dev/null
+echo "kept after delete by the other user: $($MYSQL -e "select is_del from extend_notice where id=$NOT" 2>/dev/null)"
+api DELETE /api/base/anyone/extendNotice/deleteMyNotice "$T" "[\"$NOT\"]" >/dev/null
+echo "deleted by the recipient: $($MYSQL -e "select is_del from extend_notice where id=$NOT" 2>/dev/null)"
+sleep 1
+api POST /api/base/baseLoginLog/anyone/page "$T2" '{"size":50}' | json "'login log of others:', sum(1 for r in d['data']['records'] if str(r['employeeId'])!='$U2'), 'own:', int(d['data']['total'])>0"
+api POST /api/base/baseLoginLog/anyone/page "$T2" "{\"size\":50,\"model\":{\"employeeId\":\"$U\"}}" | json "'asking for another user:', sum(1 for r in d['data']['records'] if str(r['employeeId'])!='$U2')"
+api POST /api/base/baseLoginLog/anyone/page "$TA" "{\"size\":1,\"model\":{\"employeeId\":\"$U\"}}" | json "'admin:', int(d['data']['total'])>0"
+api POST "/api/base/anyone/updateDefApp?applicationId=999999" "$T" | json "'default app, no such app:', d['code']"
+curl -s -XPOST "$HOST/api/base/extendMsg/anyUser/sendByTemplate" -H 'Content-Type: application/json' -d '{}' | json "'send without login:', d['code']"
+api POST /api/base/extendMsg/anyUser/sendByTemplate "$T" '{}' | json "'send as a user:', d['code']"
+
+echo "== the role of a user grants the interfaces of its resources"
+PR=$(date +%s%N | cut -c1-18); RS=$((PR+1)); AP=$((PR+2)); RR=$((PR+3)); ER=$((PR+4))
+$MYSQL -e "insert into base_role(id,code,name,state,create_time,create_by,update_time,update_by,tenant_id) values ($PR,'R$TS','r',1,now(),1,now(),1,1)" 2>/dev/null
+$MYSQL -e "insert into def_resource(id,application_id,code,name,resource_type,parent_id,state,create_time,create_by,update_time,update_by) values ($RS,1,'sec:$TS','r','40',0,1,now(),1,now(),1)" 2>/dev/null
+$MYSQL -e "insert into def_resource_api(id,resource_id,controller,spring_application_name,request_method,name,uri,is_input,create_by,create_time,update_by,update_time) values ($AP,$RS,'c','s','GET','n','/base/baseRole/{id}',0,1,now(),1,now())" 2>/dev/null
+$MYSQL -e "insert into base_role_resource_rel(id,resource_id,application_id,role_id,create_time,create_by,update_time,update_by,tenant_id) values ($RR,$RS,1,$PR,now(),1,now(),1,1)" 2>/dev/null
+api GET /api/base/baseRole/$PR "$T" | json "'before the grant:', d['code']"
+$MYSQL -e "insert into base_employee_role_rel(id,role_id,employee_id,create_by,create_time,is_del,tenant_id) values ($ER,$PR,$U,1,now(),0,1)" 2>/dev/null
+api GET /api/base/baseRole/$PR "$T" | json "'granted GET:', d['code'], d['data']['code'] == 'R$TS'"
+api DELETE /api/base/baseRole "$T" "[\"$PR\"]" | json "'other method:', d['code']"
+api POST /api/base/baseRole/page "$T" '{"size":1}' | json "'other path:', d['code']"
+api GET /api/base/anyone/getDefApp "$T" | json "'anyone still open:', d['code']"
+$MYSQL -e "update base_role_resource_rel set is_del=1 where id=$RR" 2>/dev/null
+api GET /api/base/baseRole/$PR "$T" | json "'after revoking:', d['code']"
+$MYSQL -e "update base_role_resource_rel set is_del=0 where id=$RR" 2>/dev/null
+
+echo "== users of the management side need a grant for every interface"
+ME="mgr$TS@example.com"; read TM UM < <(register_user "$ME")
+MU=$($MYSQL -e "select id from def_user where email='$ME'" 2>/dev/null)
+$MYSQL -e "update def_user set system_type=10 where id=$MU" 2>/dev/null
+LOGIN=$(curl -s -XPOST "$HOST/api/oauth/anyTenant/login" -H 'Content-Type: application/json' -H "Authorization: $AUTH" -d "{\"account\":\"$ME\",\"password\":\"123456\",\"systemType\":10,\"deviceType\":\"PC\",\"clientId\":\"cm\"}")
+echo "$LOGIN" | json "'login:', d['code']"
+TM=$(echo "$LOGIN" | json "d['data']['token']")
+api GET "/api/im/room/group/list?pageNo=1&pageSize=1" "$TM" | json "'not configured:', d['code']"
+api GET /api/oauth/anyone/getUserInfo "$TM" | json "'anyone:', d['code'] != 406"
+api GET /api/base/baseRole/$PR "$TM" | json "'no role:', d['code']"
+$MYSQL -e "insert into base_employee_role_rel(id,role_id,employee_id,create_by,create_time,is_del,tenant_id) values ($((PR+5)),$PR,$MU,1,now(),0,1)" 2>/dev/null
+api GET /api/base/baseRole/$PR "$TM" | json "'with the role:', d['code']"
+api GET "/api/im/room/group/list?pageNo=1&pageSize=1" "$T" | json "'ordinary user, not configured:', d['code'] != 406"
+$MYSQL -e "update base_role set is_del=1 where id=$PR; update def_resource set is_del=1 where id=$RS; update def_resource_api set is_del=1 where id=$AP; update base_role_resource_rel set is_del=1 where id=$RR; update base_employee_role_rel set is_del=1 where role_id=$PR" 2>/dev/null
+
 echo "== groovy interface and template script"
 MYSQLI=${MYSQL/docker exec/docker exec -i}
 IID=$(date +%s%N | cut -c1-18)

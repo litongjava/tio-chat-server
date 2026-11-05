@@ -24,6 +24,11 @@ public class BaseFacadeLocal implements BaseFacade {
   }
 
   @Override
+  public boolean hasApiPermission(Long employeeId, String method, String path) {
+    return Aop.get(BaseAdminService.class).hasApiPermission(employeeId, method, path);
+  }
+
+  @Override
   public List<String> employeeResourceCodes(Long employeeId, Long applicationId) {
     return Aop.get(BaseAdminService.class).employeeResourceCodes(employeeId, applicationId);
   }

@@ -34,8 +34,9 @@ public class ChatTokenInterceptor implements HttpRequestInterceptor {
       """.strip());
 
   /**
-   * 消息接口与模板（其中的脚本在服务端执行）、服务器监控、数据源配置、黑名单管理和内部的用户开通接口（可以操作其他用户或暴露系统信息），以及
-   * AI 后台管理接口（原系统归属"管理后台"菜单，跨用户读写），仅管理员可访问。
+   * 下面的接口只有管理员，或者角色被授予了对应接口（def_resource_api）的用户可以访问：消息接口与模板（其中的脚本在服务端执行）、服务器监控、数据源配置、黑名单管理和内部的用户开通接口（可以操作其他用户或暴露系统信息），以及
+   * AI 后台管理接口（原系统归属"管理后台"菜单，跨用户读写）。原系统放开的审核租户和无需登录发送消息也在其中：
+   * 前者任何人都能通过自己的租户，后者可以冒用模板给任意收件人发送邮件和短信。
    * chat/conversation/page 除外：客户端的 AI 助手用它列出自己的对话，服务端只返回本人的对话
    */
   private static final Pattern AI_ADMIN_PATH = Pattern.compile(
@@ -48,9 +49,16 @@ public class ChatTokenInterceptor implements HttpRequestInterceptor {
       |^/api/generator/.+$\
       |^/api/im/defDatasourceConfig(/.*)?$\
       |^/api/base/(?!(.*/)?(anyone|anyUser|anyTenant)/).+$\
+      |^/api/base/anyone/defTenant/updateStatus$\
+      |^/api/base/extendMsg/anyUser/sendByTemplate$\
       |^/api/im/user/(register|bindOAuth)$\
       |^/api/im/user/black(/page|/edit|/remove)?$\
       """.strip());
+
+  /** 管理端（systemType=10）的用户除这些接口外，都要校验接口权限，与原网关的 ignore 配置一致 */
+  private static final Pattern NO_URI_CHECK_PATH = Pattern.compile("^/api/([^/]+/)*(anyone|anyUser|anyTenant|anno)/.*");
+  private static final int SYSTEM_TYPE_MANAGE = 10;
+  private static final String API_PREFIX = "/api";
 
   @Override
   public HttpResponse doBeforeHandler(HttpRequest request, RequestLine requestLine, HttpResponse httpResponse)
@@ -61,20 +69,32 @@ public class ChatTokenInterceptor implements HttpRequestInterceptor {
     if (session != null) {
       LoginContext.set(request, session);
       String path = requestLine.getPath();
-      if (AI_ADMIN_PATH.matcher(path).matches() && !Facades.base().isAdmin(session.getUid())) {
+      if (needsUriCheck(session, path) && !allowed(session, requestLine, path)) {
         // 与原网关一致：权限不足返回 406 与 "无此权限：uri"
         return httpResponse.setJson(ChatResp.toR(RespBodyVo.fail(ChatCode.TOKEN_EXPIRED, "无此权限：" + path), path));
       }
       return null;
     }
     String path = requestLine.getPath();
-    if (PUBLIC_PATH.matcher(path).matches()) {
+    if (PUBLIC_PATH.matcher(path).matches() && !AI_ADMIN_PATH.matcher(path).matches()) {
       return null;
     }
     if (token == null || token.isBlank()) {
       return httpResponse.setJson(ChatResp.toR(RespBodyVo.fail(ChatCode.UNAUTHORIZED, "请先登录"), path));
     }
     return httpResponse.setJson(ChatResp.toR(RespBodyVo.fail(ChatCode.TOKEN_EXPIRED, "token已过期"), path));
+  }
+
+  private boolean needsUriCheck(LoginSession session, String path) {
+    if (AI_ADMIN_PATH.matcher(path).matches()) {
+      return true;
+    }
+    return session.getSystemType() != null && session.getSystemType() == SYSTEM_TYPE_MANAGE && path.startsWith(API_PREFIX + "/")
+        && !NO_URI_CHECK_PATH.matcher(path).matches() && !PUBLIC_PATH.matcher(path).matches();
+  }
+
+  private boolean allowed(LoginSession session, RequestLine requestLine, String path) {
+    return Facades.base().hasApiPermission(session.getUid(), requestLine.getMethod().name(), path.substring(API_PREFIX.length()));
   }
 
   @Override

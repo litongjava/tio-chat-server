@@ -236,6 +236,59 @@ public class BaseAdminService {
   }
 
   /**
+   * 接口权限：查询员工的角色被授予的资源配置的接口，uri 不带网关前缀，可以包含 {id} 这样的路径变量。
+   * 资源被授予多个角色或配置了多个接口时都算在内
+   */
+  public boolean hasApiPermission(Long employeeId, String method, String path) {
+    List<Long> roleIds = new ArrayList<>();
+    for (Kv role : employeeRoles(employeeId)) {
+      if (ADMIN_ROLE_CODES.contains(role.getStr("code"))) {
+        return true;
+      }
+      roleIds.add(role.getLong("id"));
+    }
+    if (roleIds.isEmpty()) {
+      return false;
+    }
+    String sql = """
+        select distinct a.uri, a.request_method from def_resource_api a
+        join base_role_resource_rel rr on rr.resource_id=a.resource_id and rr.is_del=0
+        join def_resource r on r.id=a.resource_id and r.is_del=0
+        where a.is_del=0 and rr.role_id in (%s)
+        """.formatted(Values.placeholders(roleIds.size()));
+    for (Kv api : Db.findMaps(sql, roleIds.toArray())) {
+      String apiMethod = api.getStr("request_method");
+      boolean methodMatches = apiMethod == null || "ALL".equalsIgnoreCase(apiMethod) || apiMethod.equalsIgnoreCase(method);
+      if (methodMatches && matches(api.getStr("uri"), path)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** 按段比较，{xxx} 和 * 匹配一段，结尾的 ** 匹配其余所有段 */
+  static boolean matches(String pattern, String path) {
+    if (pattern == null) {
+      return false;
+    }
+    String[] expected = pattern.split("/");
+    String[] actual = path.split("/");
+    for (int i = 0; i < expected.length; i++) {
+      if ("**".equals(expected[i])) {
+        return true;
+      }
+      if (i >= actual.length) {
+        return false;
+      }
+      boolean any = "*".equals(expected[i]) || (expected[i].startsWith("{") && expected[i].endsWith("}"));
+      if (!any && !expected[i].equals(actual[i])) {
+        return false;
+      }
+    }
+    return expected.length == actual.length;
+  }
+
+  /**
    * 员工可见的资源编码，管理员角色拥有全部资源
    */
   public List<String> employeeResourceCodes(Long employeeId, Long applicationId) {

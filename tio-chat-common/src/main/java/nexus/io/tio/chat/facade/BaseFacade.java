@@ -15,6 +15,9 @@ public interface BaseFacade {
 
   boolean isAdmin(Long employeeId);
 
+  /** 管理员，或者角色被授予了配置这个接口的资源（def_resource_api） */
+  boolean hasApiPermission(Long employeeId, String method, String path);
+
   List<String> employeeResourceCodes(Long employeeId, Long applicationId);
 
   Map<String, List<Kv>> dictOptions(List<Map<String, Object>> queries);
