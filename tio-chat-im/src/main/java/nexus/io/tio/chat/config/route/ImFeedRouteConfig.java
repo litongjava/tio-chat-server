@@ -1,6 +1,7 @@
 package nexus.io.tio.chat.config.route;
 
 import nexus.io.tio.chat.handler.im.feed.FeedCommentAddHandler;
+import nexus.io.tio.chat.handler.im.feed.FeedCommentAdminDeleteHandler;
 import nexus.io.tio.chat.handler.im.feed.FeedCommentAllHandler;
 import nexus.io.tio.chat.handler.im.feed.FeedCommentCountHandler;
 import nexus.io.tio.chat.handler.im.feed.FeedCommentDeleteHandler;
@@ -36,6 +37,7 @@ public class ImFeedRouteConfig {
     r.get(P + "/feed/detail", new FeedDetailHandler()::handle);
     r.get(P + "/feed/latestByUser", new FeedLatestByUserHandler()::handle);
     r.post(P + "/feed/comment/add", new FeedCommentAddHandler()::handle);
+    r.post(P + "/feed/comment/del", new FeedCommentAdminDeleteHandler()::handle);
     r.post(P + "/feed/comment/delete", new FeedCommentDeleteHandler()::handle);
     r.post(P + "/feed/comment/list", new FeedCommentListHandler()::handle);
     r.get(P + "/feed/comment/count", new FeedCommentCountHandler()::handle);

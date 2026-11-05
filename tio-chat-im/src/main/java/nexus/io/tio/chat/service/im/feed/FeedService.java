@@ -301,6 +301,10 @@ public class FeedService {
     return Db.update("update im_feed_comment set is_del=1 where id=?", commentId) > 0;
   }
 
+  public boolean deleteCommentByAdmin(Long commentId) {
+    return Db.update("update im_feed_comment set is_del=1 where id=? and is_del=0", commentId) > 0;
+  }
+
   public List<Kv> comments(Long feedId) {
     return buildComments(Db.findMaps("select * from im_feed_comment where feed_id=? and is_del=0 order by create_time", feedId));
   }
