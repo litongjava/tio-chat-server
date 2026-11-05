@@ -25,6 +25,7 @@ final class GenTemplates {
 
   private static final String JAVA = "/templates/backend/java/";
   static final String ENUM = JAVA + "enum.java.ftl";
+  static final String ECHO = JAVA + "echo.java.ftl";
   private static final String SQL = "/templates/backend/sql/menu.sql.ftl";
   private static final String VBEN = "/templates/web/vben/";
   private static final String SOY = "/templates/web/soybean/";
@@ -44,6 +45,14 @@ final class GenTemplates {
     BACKEND_FIELDS.put("saveHandler", JAVA + "saveHandler.java.ftl");
     BACKEND_FIELDS.put("updateHandler", JAVA + "updateHandler.java.ftl");
     BACKEND_FIELDS.put("deleteHandler", JAVA + "deleteHandler.java.ftl");
+    BACKEND_FIELDS.put("queryHandler", JAVA + "queryHandler.java.ftl");
+    BACKEND_FIELDS.put("getHandler", JAVA + "getHandler.java.ftl");
+    BACKEND_FIELDS.put("findByIdsHandler", JAVA + "findByIdsHandler.java.ftl");
+    BACKEND_FIELDS.put("copyHandler", JAVA + "copyHandler.java.ftl");
+    BACKEND_FIELDS.put("treeHandler", JAVA + "treeHandler.java.ftl");
+    BACKEND_FIELDS.put("exportHandler", JAVA + "exportHandler.java.ftl");
+    BACKEND_FIELDS.put("cacheHandler", JAVA + "cacheHandler.java.ftl");
+    BACKEND_FIELDS.put("echo", ECHO);
     BACKEND_FIELDS.put("routeConfig", JAVA + "routeConfig.java.ftl");
     WEB_FIELDS.put("api", VBEN + "simple/typescript/api.ts.ftl");
     WEB_FIELDS.put("model", VBEN + "simple/typescript/model.ts.ftl");
@@ -75,21 +84,51 @@ final class GenTemplates {
 
   /** 实体、SQL、接口定义和语言包由表结构决定，默认覆盖；业务代码和页面可能被修改过，存在时跳过 */
   static String strategy(String template) {
-    boolean generated = template.equals(ENUM) || template.equals(SQL) || template.endsWith("entity.java.ftl")
+    boolean generated = template.equals(ENUM) || template.equals(ECHO) || template.equals(SQL) || template.endsWith("entity.java.ftl")
         || template.endsWith("api.ts.ftl") || template.endsWith("model.ts.ftl") || template.contains("lang");
     return generated ? OVERRIDE : EXIST_IGNORE;
   }
 
-  static List<String> list(String template, String tplType, String popupType) {
+  /** 后端文件由表配置决定：父类决定有哪些接口，树结构多一个 tree 接口，有枚举或字典时生成回显类 */
+  private static List<String> backend(Map<String, Object> model) {
+    List<String> list = new ArrayList<>(List.of(SQL, JAVA + "entity.java.ftl", JAVA + "service.java.ftl", JAVA + "routeConfig.java.ftl"));
+    if (isOn(model, "canRead")) {
+      addAll(list, JAVA, "pageHandler.java.ftl", "queryHandler.java.ftl", "findByIdsHandler.java.ftl", "detailHandler.java.ftl", "getHandler.java.ftl");
+    }
+    if (isOn(model, "canWrite")) {
+      addAll(list, JAVA, "saveHandler.java.ftl", "copyHandler.java.ftl", "updateHandler.java.ftl", "deleteHandler.java.ftl");
+    }
+    if (isOn(model, "canCache")) {
+      list.add(JAVA + "cacheHandler.java.ftl");
+    }
+    if (isOn(model, "canExport")) {
+      list.add(JAVA + "exportHandler.java.ftl");
+    }
+    if (isOn(model, "hasTree")) {
+      list.add(JAVA + "treeHandler.java.ftl");
+    }
+    if (isOn(model, "hasEcho")) {
+      list.add(ECHO);
+    }
+    return list;
+  }
+
+  private static boolean isOn(Map<String, Object> model, String key) {
+    return Boolean.TRUE.equals(model.get(key));
+  }
+
+  static List<String> list(String template, Map<String, Object> model) {
+    Kv table = (Kv) model.get("table");
+    return list(template, table.getStr("tplType"), table.getStr("popupType"), model);
+  }
+
+  private static List<String> list(String template, String tplType, String popupType, Map<String, Object> model) {
     List<String> list = new ArrayList<>();
     boolean tree = GenEnums.TPL_TREE.equals(tplType);
     boolean mainSub = GenEnums.TPL_MAIN_SUB.equals(tplType);
     boolean jump = GenEnums.POPUP_JUMP.equals(popupType);
     switch (template) {
-    case BACKEND -> {
-      list.addAll(BACKEND_FIELDS.values());
-      list.remove(ENUM);
-    }
+    case BACKEND -> list.addAll(backend(model));
     case WEB_PLUS -> {
       addAll(list, VBEN, "simple/typescript/api.ts.ftl", "simple/typescript/model.ts.ftl", "simple/typescript/langEn.ts.ftl",
           "simple/typescript/langZh.ts.ftl", "simple/typescript/data.tsx.ftl");
@@ -121,8 +160,8 @@ final class GenTemplates {
   }
 
   /** 主从结构的从表只生成后端代码 */
-  static List<String> subList(String template) {
-    return BACKEND.equals(template) ? list(BACKEND, GenEnums.TPL_SIMPLE, GenEnums.POPUP_MODAL) : List.of();
+  static List<String> subList(String template, Map<String, Object> subModel) {
+    return BACKEND.equals(template) ? backend(subModel) : List.of();
   }
 
   private static void addAll(List<String> list, String root, String... files) {
@@ -198,6 +237,7 @@ final class GenTemplates {
     return switch (name) {
     case "menu.sql.ftl" -> service + "/src/main/resources/sql/" + entity + "Menu.sql";
     case "enum.java.ftl" -> root + "enums" + child + "/" + enumName + ".java";
+    case "echo.java.ftl" -> root + "enums" + child + "/" + entity + "Echo.java";
     case "entity.java.ftl" -> root + "model" + child + "/" + entity + ".java";
     case "service.java.ftl" -> root + "service" + child + "/" + entity + "Service.java";
     case "routeConfig.java.ftl" -> root + "config/route/" + entity + "RouteConfig.java";
@@ -206,6 +246,13 @@ final class GenTemplates {
     case "saveHandler.java.ftl" -> root + "handler" + child + "/" + entity + "SaveHandler.java";
     case "updateHandler.java.ftl" -> root + "handler" + child + "/" + entity + "UpdateHandler.java";
     case "deleteHandler.java.ftl" -> root + "handler" + child + "/" + entity + "DeleteHandler.java";
+    case "queryHandler.java.ftl" -> root + "handler" + child + "/" + entity + "QueryHandler.java";
+    case "getHandler.java.ftl" -> root + "handler" + child + "/" + entity + "GetHandler.java";
+    case "findByIdsHandler.java.ftl" -> root + "handler" + child + "/" + entity + "FindByIdsHandler.java";
+    case "copyHandler.java.ftl" -> root + "handler" + child + "/" + entity + "CopyHandler.java";
+    case "treeHandler.java.ftl" -> root + "handler" + child + "/" + entity + "TreeHandler.java";
+    case "exportHandler.java.ftl" -> root + "handler" + child + "/" + entity + "ExportHandler.java";
+    case "cacheHandler.java.ftl" -> root + "handler" + child + "/" + entity + "CacheHandler.java";
     default -> throw ChatErrors.of("未知模板：" + template);
     };
   }

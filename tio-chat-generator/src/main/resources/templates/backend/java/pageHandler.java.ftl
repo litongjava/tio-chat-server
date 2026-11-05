@@ -24,6 +24,8 @@ public class ${table.entityName}PageHandler {
     ${table.entityName} query = null;
     long current = 1;
     long size = 10;
+    String sort = null;
+    String order = null;
     if (body != null) {
       if (body.get("model") != null) {
         query = JsonUtils.parse(JsonUtils.toJson(body.get("model")), ${table.entityName}.class);
@@ -34,8 +36,10 @@ public class ${table.entityName}PageHandler {
       if (body.get("size") != null) {
         size = Long.parseLong(body.get("size").toString());
       }
+      sort = body.getStr("sort");
+      order = body.getStr("order");
     }
-    Kv page = Aop.get(${table.entityName}Service.class).page(query, current, size);
+    Kv page = Aop.get(${table.entityName}Service.class).page(query, current, size, sort, order);
     return TioRequestContext.getResponse().setJson(RespBodyVo.ok(page));
   }
 }

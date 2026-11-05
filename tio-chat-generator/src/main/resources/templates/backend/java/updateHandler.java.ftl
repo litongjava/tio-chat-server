@@ -1,5 +1,7 @@
 package ${handlerPackage};
 
+import com.jfinal.kit.Kv;
+
 import nexus.io.jfinal.aop.Aop;
 import nexus.io.model.body.RespBodyVo;
 import nexus.io.tio.boot.http.TioRequestContext;
@@ -22,6 +24,10 @@ public class ${table.entityName}UpdateHandler {
     if (model == null || model.get${pkField.javaField?cap_first}() == null) {
       return TioRequestContext.getResponse().setJson(RespBodyVo.fail("id不能为空"));
     }
-    return TioRequestContext.getResponse().setJson(RespBodyVo.ok(Aop.get(${table.entityName}Service.class).update(model)));
+    Kv updated = Aop.get(${table.entityName}Service.class).update(model);
+    if (updated == null) {
+      return TioRequestContext.getResponse().setJson(RespBodyVo.fail("数据不存在或已被删除，请刷新重试"));
+    }
+    return TioRequestContext.getResponse().setJson(RespBodyVo.ok(updated));
   }
 }

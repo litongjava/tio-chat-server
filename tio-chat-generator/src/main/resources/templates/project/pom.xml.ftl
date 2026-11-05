@@ -26,6 +26,14 @@
       <version>${tioBootCloudVersion}</version>
     </dependency>
 </#if>
+<#if seata>
+    <!-- 需要分布式事务时使用；客户端的初始化和事务注解需要在项目中自行接入 -->
+    <dependency>
+      <groupId>io.seata</groupId>
+      <artifactId>seata-all</artifactId>
+      <version>${seataVersion}</version>
+    </dependency>
+</#if>
     <dependency>
       <groupId>nexus.io</groupId>
       <artifactId>jfinal-aop</artifactId>

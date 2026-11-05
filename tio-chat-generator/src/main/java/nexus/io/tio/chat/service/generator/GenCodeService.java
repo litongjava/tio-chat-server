@@ -57,10 +57,10 @@ public class GenCodeService {
     if (GenEnums.TPL_MAIN_SUB.equals(table.getStr("tplType"))) {
       Kv subTable = GenModel.loadTable(table.getLong("subId"));
       subModel = GenModel.build(subTable, null);
-      previewAll(subModel, GenTemplates.subList(template), template, subResult);
+      previewAll(subModel, GenTemplates.subList(template, subModel), template, subResult);
     }
     Map<String, Object> model = GenModel.build(table, subModel);
-    previewAll(model, GenTemplates.list(template, table.getStr("tplType"), table.getStr("popupType")), template, result);
+    previewAll(model, GenTemplates.list(template, model), template, result);
     subResult.forEach((key, value) -> result.put("sub-" + key, value));
     return result;
   }
@@ -106,11 +106,10 @@ public class GenCodeService {
     if (GenEnums.TPL_MAIN_SUB.equals(table.getStr("tplType"))) {
       subTable = GenModel.loadTable(table.getLong("subId"));
       subModel = GenModel.build(subTable, null);
-      addFiles(files, subModel, GenTemplates.subList(templateType), templateType, subTable, null);
+      addFiles(files, subModel, GenTemplates.subList(templateType, subModel), templateType, subTable, null);
     }
     Map<String, Object> model = GenModel.build(table, subModel);
-    addFiles(files, model, GenTemplates.list(templateType, table.getStr("tplType"), table.getStr("popupType")), templateType, table,
-        subTable);
+    addFiles(files, model, GenTemplates.list(templateType, model), templateType, table, subTable);
     return files;
   }
 

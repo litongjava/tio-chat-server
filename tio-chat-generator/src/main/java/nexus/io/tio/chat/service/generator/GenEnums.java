@@ -17,6 +17,12 @@ final class GenEnums {
   static final String POPUP_JUMP = "03";
   static final String SUPER_CLASS = "01";
   static final String SUPER_POI_CLASS = "02";
+  static final String SUPER_CACHE_CLASS = "03";
+  static final String SUPER_SIMPLE_CLASS = "04";
+  static final String SUPER_READ_CLASS = "05";
+  static final String SUPER_WRITE_CLASS = "06";
+  static final String SUPER_NONE_CS = "07";
+  static final String SUPER_NONE = "08";
   static final String ENTITY_SUPER_ENTITY = "01";
   static final String ENTITY_ENTITY = "02";
   static final String ENTITY_TREE = "03";
@@ -27,8 +33,9 @@ final class GenEnums {
   static {
     FIELDS.put("tplType", Map.of("SIMPLE", TPL_SIMPLE, "TREE", TPL_TREE, "MAIN_SUB", TPL_MAIN_SUB));
     FIELDS.put("popupType", Map.of("MODAL", POPUP_MODAL, "DRAWER", POPUP_DRAWER, "JUMP", POPUP_JUMP));
-    FIELDS.put("superClass", Map.of("SUPER_CLASS", SUPER_CLASS, "SUPER_POI_CLASS", SUPER_POI_CLASS, "SUPER_CACHE_CLASS", "03",
-        "SUPER_SIMPLE_CLASS", "04", "SUPER_READ_CLASS", "05", "SUPER_WRITE_CLASS", "06", "NONE_CS", "07", "NONE", "08"));
+    FIELDS.put("superClass", Map.of("SUPER_CLASS", SUPER_CLASS, "SUPER_POI_CLASS", SUPER_POI_CLASS, "SUPER_CACHE_CLASS", SUPER_CACHE_CLASS,
+        "SUPER_SIMPLE_CLASS", SUPER_SIMPLE_CLASS, "SUPER_READ_CLASS", SUPER_READ_CLASS, "SUPER_WRITE_CLASS", SUPER_WRITE_CLASS,
+        "NONE_CS", SUPER_NONE_CS, "NONE", SUPER_NONE));
     FIELDS.put("entitySuperClass",
         Map.of("SUPER_ENTITY", ENTITY_SUPER_ENTITY, "ENTITY", ENTITY_ENTITY, "TREE_ENTITY", ENTITY_TREE, "NONE", "04"));
     FIELDS.put("genType", Map.of("GEN", GEN_DIRECT, "ZIP", "02"));

@@ -20,7 +20,7 @@ import ${servicePackage}.${table.entityName}Service;
 public class ${table.entityName}DeleteHandler {
 
   public HttpResponse handle(HttpRequest request) {
-    List<Long> ids = JSON.parseArray(request.getBodyString(), Long.class);
+    List<${pkField.javaType}> ids = JSON.parseArray(request.getBodyString(), ${pkField.javaType}.class);
     if (ids == null || ids.isEmpty()) {
       return TioRequestContext.getResponse().setJson(RespBodyVo.fail("请选择要删除的数据"));
     }
