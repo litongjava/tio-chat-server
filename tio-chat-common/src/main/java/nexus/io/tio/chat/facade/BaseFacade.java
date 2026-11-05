@@ -25,4 +25,7 @@ public interface BaseFacade {
   Map<String, String> params(List<String> keys);
 
   Kv visibleResource(Long employeeId, Long applicationId);
+
+  /** 不需要登录的公共路由：公共资源中的菜单 */
+  List<Kv> constantRoutes(Long applicationId);
 }

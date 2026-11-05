@@ -256,12 +256,18 @@ public class BaseExtService {
   /**
    * 当前员工可见的菜单路由、资源编码与角色编码
    */
-  public Kv visibleResource(Long employeeId, Long applicationId) {
-    BaseAdminService admin = Aop.get(BaseAdminService.class);
-    List<String> resources = admin.employeeResourceCodes(employeeId, applicationId);
+  /** 不需要登录的公共路由：公共资源中的菜单 */
+  public List<Kv> constantRoutes(Long applicationId) {
+    return Aop.get(BaseAdminService.class).buildTree(routers(applicationId, true));
+  }
+
+  private List<Kv> routers(Long applicationId, boolean generalOnly) {
     List<Kv> routers = new ArrayList<>();
     StringBuilder sql = new StringBuilder("select * from def_resource where is_del=0 and state=1 and resource_type in ('20','30')");
     List<Object> params = new ArrayList<>();
+    if (generalOnly) {
+      sql.append(" and is_general=1");
+    }
     if (applicationId != null) {
       sql.append(" and application_id=?");
       params.add(applicationId);
@@ -274,8 +280,14 @@ public class BaseExtService {
           .set("name", row.getStr("code")).set("component", row.getStr("component")).set("redirect", row.getStr("redirect"))
           .set("meta", meta));
     }
+    return routers;
+  }
+
+  public Kv visibleResource(Long employeeId, Long applicationId) {
+    BaseAdminService admin = Aop.get(BaseAdminService.class);
+    List<String> resources = admin.employeeResourceCodes(employeeId, applicationId);
     return Kv.by("enabled", true).set("caseSensitive", false).set("roleList", admin.employeeRoleCodes(employeeId))
-        .set("resourceList", resources).set("routerList", admin.buildTree(routers));
+        .set("resourceList", resources).set("routerList", admin.buildTree(routers(applicationId, false)));
   }
 
   private Long operator() {

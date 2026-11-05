@@ -44,6 +44,11 @@ public class BaseFacadeLocal implements BaseFacade {
   }
 
   @Override
+  public List<Kv> constantRoutes(Long applicationId) {
+    return Aop.get(BaseExtService.class).constantRoutes(applicationId);
+  }
+
+  @Override
   public Kv visibleResource(Long employeeId, Long applicationId) {
     return Aop.get(BaseExtService.class).visibleResource(employeeId, applicationId);
   }
