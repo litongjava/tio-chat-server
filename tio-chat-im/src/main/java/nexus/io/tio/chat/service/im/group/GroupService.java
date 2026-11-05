@@ -195,11 +195,12 @@ public class GroupService {
       uids.add(m.getLong("uid"));
     }
     Map<Long, UserSummary> users = Aop.get(UserSummaryService.class).getBatch(uids);
+    Set<Long> muted = Aop.get(GroupMuteService.class).mutedOf(roomId, uids);
     Set<Long> online = Aop.get(OnlineService.class).onlineOf(uids);
     List<Kv> result = new ArrayList<>();
     for (Kv m : members) {
       long uid = m.getLong("uid");
-      Kv item = Kv.by("id", m.getLong("id")).set("uid", String.valueOf(uid)).set("roleId", Values.toInt(m.get("role_id")))
+      Kv item = Kv.by("id", m.getLong("id")).set("uid", String.valueOf(uid)).set("muted", muted.contains(uid)).set("roleId", Values.toInt(m.get("role_id")))
           .set("myName", m.getStr("my_name"));
       UserSummary user = users.get(uid);
       if (user != null) {

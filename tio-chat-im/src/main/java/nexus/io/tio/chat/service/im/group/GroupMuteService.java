@@ -1,13 +1,21 @@
 package nexus.io.tio.chat.service.im.group;
 
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import com.jfinal.kit.Kv;
 
 import nexus.io.jfinal.aop.Aop;
 import nexus.io.redis.Redis;
 import nexus.io.tio.chat.consts.ImConst;
+import nexus.io.tio.chat.consts.MsgType;
 import nexus.io.tio.chat.facade.Facades;
+import nexus.io.tio.chat.model.im.chat.ChatMessageReq;
+import nexus.io.tio.chat.model.im.user.UserSummary;
+import nexus.io.tio.chat.service.im.UserSummaryService;
+import nexus.io.tio.chat.service.im.chat.MessageService;
 import nexus.io.tio.chat.utils.ChatErrors;
 
 /**
@@ -27,17 +35,46 @@ public class GroupMuteService {
     ChatErrors.require(minutes != null && minutes > 0 && minutes <= MAX_MINUTES, "禁言时长必须在 1 到 43200 分钟之间");
     requireOperable(operator, roomId, uid);
     Redis.call(jedis -> jedis.setex(key(roomId, uid), minutes * SECONDS_PER_MINUTE, String.valueOf(operator)));
+    notifyRoom(operator, roomId, uid, "已被禁言 " + minutes + " 分钟");
     return true;
   }
 
   public boolean unmute(long operator, Long roomId, Long uid) {
     requireOperable(operator, roomId, uid);
-    Redis.call(jedis -> jedis.del(key(roomId, uid)));
+    Long removed = Redis.call(jedis -> jedis.del(key(roomId, uid)));
+    if (removed != null && removed > 0) {
+      notifyRoom(operator, roomId, uid, "已解除禁言");
+    }
     return true;
   }
 
   public boolean isMuted(long roomId, long uid) {
     return Boolean.TRUE.equals(Redis.call(jedis -> jedis.exists(key(roomId, uid))));
+  }
+
+  /** 群里的系统消息，让所有成员知道禁言状态的变化 */
+  private void notifyRoom(long operator, long roomId, long uid, String action) {
+    UserSummary user = Aop.get(UserSummaryService.class).get(uid);
+    String text = (user == null ? String.valueOf(uid) : user.getName()) + action;
+    ChatMessageReq req = ChatMessageReq.of(roomId, MsgType.SYSTEM, Kv.by("content", text));
+    req.setSkip(true);
+    Aop.get(MessageService.class).send(req, operator);
+  }
+
+  /** @return uids 中正在被禁言的成员 */
+  public Set<Long> mutedOf(long roomId, List<Long> uids) {
+    Set<Long> muted = new HashSet<>();
+    if (uids.isEmpty()) {
+      return muted;
+    }
+    String[] keys = uids.stream().map(uid -> key(roomId, uid)).toArray(String[]::new);
+    List<String> values = Redis.call(jedis -> jedis.mget(keys));
+    for (int i = 0; i < uids.size(); i++) {
+      if (values.get(i) != null) {
+        muted.add(uids.get(i));
+      }
+    }
+    return muted;
   }
 
   /** 系统管理员和群主可以操作任何成员，群管理员只能操作普通成员，群主不能被禁言 */

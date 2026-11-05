@@ -65,6 +65,8 @@ echo "owner mutes member:"; mute "$TO" "$U"
 OUT=$(send "$T"); echo "$OUT"; case "$OUT" in *禁言*) ;; *) echo "a muted member could send"; exit 1 ;; esac
 send "$T2"
 echo "ttl: $($REDIS ttl luohuo:group:mute:$ROOM:$U)"
+api GET "/api/im/room/group/listMember?roomId=$ROOM" "$TO" | json "'muted in the member list:', sorted(str(m['uid'])=='$U' for m in d['data'] if m['muted'])"
+api GET "/api/im/chat/msg/page?roomId=$ROOM&pageSize=3" "$TO" | json "'system message:', any('禁言' in str(m['message'].get('body')) for m in d['data']['list'])"
 echo "manager mutes a member:"; mute "$TM" "$U2"
 api POST /api/im/room/group/unmute "$TM" "{\"roomId\":\"$ROOM\",\"uid\":\"$U2\"}" >/dev/null
 echo "member mutes a manager:"; mute "$T2" "$UM"
