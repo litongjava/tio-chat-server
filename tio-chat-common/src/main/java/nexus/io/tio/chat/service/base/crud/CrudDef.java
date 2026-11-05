@@ -28,6 +28,9 @@ public class CrudDef {
   /** 普通用户新增时写入的固定值 */
   private final Map<String, Object> userDefaults = new HashMap<>();
   private boolean adminCreateOnly;
+  private CrudHook hook;
+  /** 查询时固定加上的条件，例如字典和字典项在同一张表 */
+  private String fixedWhere;
   /** 新增时必须填写的列：列 -> 提示 */
   private final Map<String, String> requiredColumns = new HashMap<>();
 
@@ -95,6 +98,24 @@ public class CrudDef {
   public CrudDef adminCreateOnly() {
     this.adminCreateOnly = true;
     return this;
+  }
+
+  public CrudDef hook(CrudHook hook) {
+    this.hook = hook;
+    return this;
+  }
+
+  public CrudHook getHook() {
+    return hook;
+  }
+
+  public CrudDef fixedWhere(String condition) {
+    this.fixedWhere = condition;
+    return this;
+  }
+
+  public String getFixedWhere() {
+    return fixedWhere;
   }
 
   public CrudDef required(String column, String message) {

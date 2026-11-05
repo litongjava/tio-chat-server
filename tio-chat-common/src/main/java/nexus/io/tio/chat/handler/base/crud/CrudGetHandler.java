@@ -22,6 +22,6 @@ public class CrudGetHandler {
   public HttpResponse handle(HttpRequest request) {
     Long id = Values.toLong(request.getPathVar("id"));
     ParameterValidationUtils.required(id, "id不能为空");
-    return ChatResp.ok(Aop.get(CrudService.class).get(def, id));
+    return ChatResp.ok(Aop.get(CrudService.class).getWithDetail(def, id));
   }
 }

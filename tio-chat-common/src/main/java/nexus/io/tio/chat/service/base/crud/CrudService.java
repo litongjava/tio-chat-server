@@ -40,6 +40,9 @@ public class CrudService {
       Object value = row.get(column);
       ChatErrors.require(value != null && !value.toString().isBlank(), message);
     });
+    if (def.getHook() != null) {
+      def.getHook().beforeSave(body, row);
+    }
     applyUserDefaults(def, row);
     if (row.get("id") == null) {
       row.set("id", SnowflakeIdUtils.id());
@@ -48,7 +51,13 @@ public class CrudService {
     if (operator != null && TableMeta.hasColumn(def.getTable(), "create_by")) {
       row.set("create_by", operator);
     }
-    DbRows.save(def.getTable(), row);
+    Db.tx(() -> {
+      DbRows.save(def.getTable(), row);
+      if (def.getHook() != null) {
+        def.getHook().afterSave(body, row);
+      }
+      return true;
+    });
     return get(def, row.getLong("id"));
   }
 
@@ -63,11 +72,20 @@ public class CrudService {
         row.set(column, source.get(key));
       }
     }
+    if (def.getHook() != null) {
+      def.getHook().beforeCopy(source, row);
+    }
     row.set("id", SnowflakeIdUtils.id());
     if (operator() != null && TableMeta.hasColumn(def.getTable(), "create_by")) {
       row.set("create_by", operator());
     }
-    DbRows.save(def.getTable(), row);
+    Db.tx(() -> {
+      DbRows.save(def.getTable(), row);
+      if (def.getHook() != null) {
+        def.getHook().afterCopy(id, row);
+      }
+      return true;
+    });
     return get(def, row.getLong("id"));
   }
 
@@ -79,25 +97,34 @@ public class CrudService {
     }
     Row row = toRow(def, body, false);
     row.remove("id");
+    if (def.getHook() != null) {
+      def.getHook().beforeUpdate(id, body, row);
+    }
     if (TableMeta.hasColumn(def.getTable(), "update_by") && operator() != null) {
       row.set("update_by", operator());
     }
-    if (!row.getColumns().isEmpty()) {
-      List<Object> params = new ArrayList<>();
-      StringBuilder sql = new StringBuilder("update ").append(def.getTable()).append(" set ");
-      boolean first = true;
-      for (Map.Entry<String, Object> entry : row.getColumns().entrySet()) {
-        if (!first) {
-          sql.append(", ");
+    Db.tx(() -> {
+      if (!row.getColumns().isEmpty()) {
+        List<Object> params = new ArrayList<>();
+        StringBuilder sql = new StringBuilder("update ").append(def.getTable()).append(" set ");
+        boolean first = true;
+        for (Map.Entry<String, Object> entry : row.getColumns().entrySet()) {
+          if (!first) {
+            sql.append(", ");
+          }
+          first = false;
+          sql.append(entry.getKey()).append("=?");
+          params.add(entry.getValue());
         }
-        first = false;
-        sql.append(entry.getKey()).append("=?");
-        params.add(entry.getValue());
+        sql.append(" where id=?");
+        params.add(id);
+        Db.update(sql.toString(), params.toArray());
       }
-      sql.append(" where id=?");
-      params.add(id);
-      Db.update(sql.toString(), params.toArray());
-    }
+      if (def.getHook() != null) {
+        def.getHook().afterUpdate(id, body);
+      }
+      return true;
+    });
     return get(def, id);
   }
 
@@ -111,12 +138,14 @@ public class CrudService {
       where += " and " + def.getOwnerColumn() + "=?";
       params.add(owner(def));
     }
-    if (TableMeta.hasColumn(def.getTable(), "is_del")) {
-      Db.update("update " + def.getTable() + " set is_del=1" + where, params.toArray());
-    } else {
-      Db.update("delete from " + def.getTable() + where, params.toArray());
-    }
-    return true;
+    String sql = TableMeta.hasColumn(def.getTable(), "is_del") ? "update " + def.getTable() + " set is_del=1" + where : "delete from " + def.getTable() + where;
+    return Db.tx(() -> {
+      if (def.getHook() != null) {
+        def.getHook().beforeDelete(ids);
+      }
+      Db.update(sql, params.toArray());
+      return true;
+    });
   }
 
   // ---------------------------------------------------------------- 查询
@@ -130,6 +159,18 @@ public class CrudService {
     Kv vo = get(def, id);
     if (vo != null) {
       Aop.get(EchoService.class).fill(List.of(vo), def.getEcho());
+      if (def.getHook() != null) {
+        def.getHook().decorateDetail(vo);
+      }
+    }
+    return vo;
+  }
+
+  /** 按 id 查询单条，内容与详情接口相同，不带回显 */
+  public Kv getWithDetail(CrudDef def, Long id) {
+    Kv vo = get(def, id);
+    if (vo != null && def.getHook() != null) {
+      def.getHook().decorateDetail(vo);
     }
     return vo;
   }
@@ -140,6 +181,9 @@ public class CrudService {
     List<Kv> result = new ArrayList<>();
     for (Kv row : Db.findMaps("select * from " + def.getTable() + where + " order by id desc", params.toArray())) {
       result.add(toVo(def, row));
+    }
+    if (def.getHook() != null) {
+      def.getHook().decorateList(result);
     }
     return result;
   }
@@ -184,6 +228,9 @@ public class CrudService {
       records.add(toVo(def, row));
     }
     Aop.get(EchoService.class).fill(records, def.getEcho());
+    if (def.getHook() != null) {
+      def.getHook().decorateList(records);
+    }
     return IPageResp.of(records, total, size, current);
   }
 
@@ -276,6 +323,9 @@ public class CrudService {
     if (TableMeta.hasColumn(def.getTable(), "is_del")) {
       where.append(" and is_del=0");
     }
+    if (def.getFixedWhere() != null) {
+      where.append(" and ").append(def.getFixedWhere());
+    }
     if (def.getOwnerColumn() != null) {
       where.append(" and ").append(def.getOwnerColumn()).append("=?");
       params.add(owner(def));
@@ -301,6 +351,9 @@ public class CrudService {
       for (Map.Entry<String, Object> entry : extra.entrySet()) {
         appendExtra(def, entry.getKey(), entry.getValue(), where, params);
       }
+    }
+    if (def.getHook() != null && model != null) {
+      def.getHook().appendWhere(model, where, params);
     }
     return where.toString();
   }
