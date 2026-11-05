@@ -9,7 +9,10 @@ import com.jfinal.kit.Kv;
 
 import nexus.io.db.activerecord.Db;
 import nexus.io.db.activerecord.Row;
+import nexus.io.tio.boot.http.TioRequestContext;
 import nexus.io.tio.chat.utils.DbRows;
+import nexus.io.tio.chat.utils.UserAgents;
+import nexus.io.tio.http.common.HttpRequest;
 import nexus.io.tio.utils.thread.TioThreadUtils;
 
 /**
@@ -20,12 +23,16 @@ public class LoginLogService {
   public static final String PASSWORD_ERROR = "03";
 
   public void record(Long uid, Kv user, String ip, String ua, String status, String description) {
+    // 写日志在其他线程，这里先取当前请求的 User-Agent
+    HttpRequest request = TioRequestContext.getRequest();
+    String agent = ua != null || request == null ? ua : request.getHeader("user-agent");
     TioThreadUtils.execute(() -> {
       Row row = Row.by("employee_id", uid).set("user_id", user == null ? null : user.getLong("id"))
           .set("request_ip", ip).set("nick_name", user == null ? null : user.getStr("nick_name"))
           .set("username", user == null ? null : user.getStr("username")).set("status", status)
-          .set("description", description).set("login_date", LocalDate.now().toString()).set("ua", ua)
+          .set("description", description).set("login_date", LocalDate.now().toString())
           .set("create_by", user == null ? 0L : user.getLong("id"));
+      UserAgents.fill(row, agent);
       DbRows.save("def_login_log", row);
     });
   }
