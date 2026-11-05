@@ -11,7 +11,8 @@ import nexus.io.tio.http.common.HttpResponse;
 public class AnyoneTenantUpdateStatusHandler {
   public HttpResponse handle(HttpRequest request) {
     Long id = ParameterValidationUtils.requiredLong(request, "id");
-    int status = ParameterValidationUtils.optionalInt(request, "status", 10);
+    int status = ParameterValidationUtils.optionalInt(request, "status", -1);
+    ParameterValidationUtils.isTrue(status >= 0, "请传递状态值");
     return ChatResp.ok(Aop.get(BaseExtService.class).updateTenantStatus(id, status));
   }
 }

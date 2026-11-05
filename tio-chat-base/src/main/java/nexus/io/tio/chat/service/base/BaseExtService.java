@@ -39,7 +39,7 @@ public class BaseExtService {
 
   public List<Kv> tenants() {
     List<Kv> result = new ArrayList<>();
-    for (Kv row : Db.findMaps("select * from def_tenant where is_del=0 and status='10' order by id")) {
+    for (Kv row : Db.findMaps("select * from def_tenant where is_del=0 and status=0 order by id")) {
       result.add(crud().toVo(TENANT, row));
     }
     return result;
@@ -79,6 +79,7 @@ public class BaseExtService {
   // ---------------------------------------------------------------- 应用
 
   public boolean updateDefApp(Long applicationId, Long userId) {
+    ChatErrors.require(crud().get(APPLICATION, applicationId) != null, "应用不存在");
     Db.update("delete from def_user_application where user_id=?", userId);
     return DbRows.save("def_user_application", Row.by("user_id", userId).set("application_id", applicationId)
         .set("create_by", userId));
@@ -149,8 +150,15 @@ public class BaseExtService {
         + Values.placeholders(noticeIds.size()) + ")", params.toArray()) >= 0;
   }
 
+  /** 只删除发给当前用户的通知 */
   public boolean deleteNotice(List<Long> ids) {
-    return crud().delete(NOTICE, ids);
+    if (ids == null || ids.isEmpty()) {
+      return true;
+    }
+    List<Object> params = new ArrayList<>(ids);
+    params.add(LoginContext.uid());
+    Db.update("update extend_notice set is_del=1 where id in (" + Values.placeholders(ids.size()) + ") and recipient_id=?", params.toArray());
+    return true;
   }
 
   /**
