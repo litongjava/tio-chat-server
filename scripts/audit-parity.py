@@ -5,8 +5,7 @@ usage: audit-parity.py <HuLa-Server dir> <admin token> <uid> <output json> [base
 Path variables use real ids from the page endpoints for GET and an id that does not exist for writes. Reports:
 - server errors (HTTP 5xx or code 500) with the request, these are bugs
 - routes that answer 404
-- fields of the result class missing from a non empty response; a field whose value is null is left out of the
-  JSON here, so these need checking against the data
+- fields of the result class missing from a non empty response, except the checked differences in KNOWN below
 """
 import json, os, re, sys, urllib.request, urllib.error, collections, time
 
@@ -16,6 +15,24 @@ MODULES = {'luohuo-oauth': 'oauth', 'luohuo-im': 'im', 'luohuo-base': 'base', 'l
 ANN = re.compile(r'@(Get|Post|Put|Delete|Patch|Request)Mapping\s*(\((?:[^()]|\([^()]*\))*\))?')
 METHODS = {'Get': 'GET', 'Post': 'POST', 'Put': 'PUT', 'Delete': 'DELETE', 'Patch': 'PATCH'}
 SKIP = re.compile(r'logout|/kick|offline|clear|/stream|/notify|portal|/ws/|sse|upload|/export|/import|download|generatorCode|defGenProject/generate|delete-by-admin|exit|removeAll|/test')
+
+# Fields of a result class the original backend does not fill on these endpoints either, or that its tables do not have.
+ALL = None
+KNOWN = {
+    # inner classes of the response are read as fields of the outer class; the nested values are there
+    'AdminStatsResp': ALL, 'ChatMessageResp': ALL, 'FriendCheckResp': ALL,
+    # the original only sets name and comment on this list
+    'DefGenTable': ALL,
+    # the entity has columns that the install scripts of the original do not create
+    'DefTenantResultVO': ALL, 'DefDatasourceConfigResultVO': {'dbPrefix'}, 'BaseEmployeeResultVO': {'isDefault'},
+    # null in the original: no code fills them on these endpoints
+    'AiChatRoleRespVO': {'model', 'modelName'}, 'MemberResp': {'roleId'},
+    # filled only by other endpoints: operation log detail, msg get, resource detail, my applications
+    'BaseOperationLogResultVO': {'exDetail', 'params', 'result'}, 'ExtendMsgResultVO': {'recipientList'},
+    'DefResourceResultVO': {'resourceApiList'}, 'DefApplicationResultVO': {'expirationTime', 'state'},
+    # logic delete column, the client does not read it
+    'AiChatConversationDO': {'deleted'},
+}
 
 classes = {}
 sources = []
@@ -208,7 +225,11 @@ for (m, mod, p), e in sorted(endpoints.items(), key=lambda kv: (kv[0][1], kv[0][
         rec = records(doc.get('data'))
         if rec and isinstance(rec[0], dict):
             expected = {f for f, _, _ in all_fields(e['result'])}
-            missing = sorted(expected - set(rec[0].keys()) - {'echoMap', 'serialVersionUID'})
+            missing = set(expected) - set(rec[0].keys()) - {'echoMap', 'serialVersionUID'}
+            if e['result'] in KNOWN:
+                known = KNOWN[e['result']]
+                missing = set() if known is ALL else missing - known
+            missing = sorted(missing)
             if missing:
                 result['missing_fields'].append({'endpoint': key, 'result': e['result'], 'missing': missing})
 
