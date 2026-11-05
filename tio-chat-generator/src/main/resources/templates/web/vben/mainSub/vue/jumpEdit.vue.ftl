@@ -14,7 +14,7 @@
   </PageWrapper>
 </template>
 <script lang="ts">
-  import { defineComponent, ref, unref, onMounted } from 'vue';
+  import { defineComponent, ref, unref, onMounted, h } from 'vue';
   import { BasicForm, useForm } from '/@/components/Form/index';
   import { PageWrapper } from '/@/components/Page';
   import { useRouter } from 'vue-router';
@@ -25,7 +25,7 @@
   import { Api, save, update, detail } from '/@/api/${table.plusApplicationName}/${table.plusModuleName}/${table.entityName?uncap_first}';
   import { getValidateRules } from '/@/api/${projectPrefix}/common/formValidateService';
   import { customFormSchemaRules, editFormSchema } from './${table.entityName?uncap_first}.data';
-  import ${sub.table.entityName}Modal from './${sub.table.entityName?uncap_first}/index';
+  import ${sub.table.entityName}Modal from './${sub.table.entityName?uncap_first}/index.vue';
 
   export default defineComponent({
     name: '编辑${table.menuName}',

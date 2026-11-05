@@ -12,7 +12,7 @@
 </template>
 <script lang="ts">
   import { defineComponent, reactive, ref } from 'vue';
-  import { VxeGridInstance, VxeGridListeners, VxeGridProps, VxeTablePropTypes } from 'vxe-table';
+  import { VxeGridInstance, VxeGridListeners, VxeGridProps, VxeTablePropTypes, VxeFormPropTypes } from 'vxe-table';
   import { useI18n } from '/@/hooks/web/useI18n';
   import { useMessage } from '/@/hooks/web/useMessage';
   import { PopConfirmButton } from '/@/components/Button';
@@ -30,7 +30,7 @@
       const ${table.subJavaFieldName} = ref<string>('');
 
       const typeRef = ref<ActionEnum>(ActionEnum.ADD);
-      const xGrid = ref<VxeGridInstance>({});
+      const xGrid = ref({} as VxeGridInstance);
       const validRules = ref<VxeTablePropTypes.EditRules>({});
 
       const gridOptions = reactive<VxeGridProps>({
@@ -48,7 +48,7 @@
           storage: true,
         },
         formConfig: {
-          items: formItems(),
+          items: formItems() as VxeFormPropTypes.Items,
         },
         toolbarConfig: {
           perfect: true,
@@ -98,7 +98,7 @@
           },
         },
         columns: columns(),
-        editRules: validRules,
+        editRules: validRules as unknown as VxeTablePropTypes.EditRules,
         editConfig: {
           trigger: 'click',
           mode: 'row',

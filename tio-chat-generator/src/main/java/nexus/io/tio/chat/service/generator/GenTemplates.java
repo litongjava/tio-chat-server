@@ -159,9 +159,16 @@ final class GenTemplates {
     return list;
   }
 
-  /** 主从结构的从表只生成后端代码 */
+  /** 主从结构的从表：后端代码，以及主表页面用到的从表接口定义和语言包 */
   static List<String> subList(String template, Map<String, Object> subModel) {
-    return BACKEND.equals(template) ? backend(subModel) : List.of();
+    if (BACKEND.equals(template)) {
+      return backend(subModel);
+    }
+    List<String> list = new ArrayList<>();
+    if (WEB_PLUS.equals(template)) {
+      addAll(list, VBEN, "simple/typescript/api.ts.ftl", "simple/typescript/model.ts.ftl", "simple/typescript/langEn.ts.ftl", "simple/typescript/langZh.ts.ftl");
+    }
+    return list;
   }
 
   private static void addAll(List<String> list, String root, String... files) {
