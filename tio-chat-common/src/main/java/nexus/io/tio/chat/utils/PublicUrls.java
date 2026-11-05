@@ -3,6 +3,8 @@ package nexus.io.tio.chat.utils;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -23,11 +25,15 @@ public final class PublicUrls {
     String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
     ChatErrors.require(("http".equals(scheme) || "https".equals(scheme)) && uri.getHost() != null, "只支持 http 和 https 地址");
     try {
-      for (InetAddress address : InetAddress.getAllByName(uri.getHost())) {
-        ChatErrors.require(isPublic(address), "不允许访问内网地址");
-      }
+      requirePublic(Arrays.asList(InetAddress.getAllByName(uri.getHost())));
     } catch (UnknownHostException e) {
       throw ChatErrors.of("无法解析地址：" + uri.getHost());
+    }
+  }
+
+  public static void requirePublic(List<InetAddress> addresses) {
+    for (InetAddress address : addresses) {
+      ChatErrors.require(isPublic(address), "不允许访问内网地址");
     }
   }
 

@@ -157,6 +157,6 @@ api GET '/api/ai/workflow/page?pageNo=1&pageSize=1' "$TA" | json "d['code']"
 W=$(api POST /api/ai/workflow/create "$TA" '{"code":"w","name":"w","graph":"{}","status":0}' | json "d['code'], d['data']"); echo "workflow: ${W%%,*}"
 
 echo "== the server does not fetch internal addresses for users"
-for u in 'http://127.0.0.1:18760/health' 'http://10.0.0.1/' 'http://169.254.169.254/latest/meta-data' 'file:///etc/passwd' 'x'; do
+for u in 'http://localhost:18760/health' 'http://127.0.0.1:18760/health' 'http://10.0.0.1/' 'http://169.254.169.254/latest/meta-data' 'file:///etc/passwd' 'x'; do
   api GET "/api/ai/knowledge/segment/split?segmentMaxTokens=10&url=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$u")" "$TA" | msg
 done
