@@ -3,6 +3,8 @@ package nexus.io.tio.chat.config.route;
 import nexus.io.tio.chat.handler.im.room.AddAdminHandler;
 import nexus.io.tio.chat.handler.im.room.AnnouncementDeleteHandler;
 import nexus.io.tio.chat.handler.im.room.AnnouncementEditHandler;
+import nexus.io.tio.chat.handler.im.room.GroupMuteHandler;
+import nexus.io.tio.chat.handler.im.room.GroupUnmuteHandler;
 import nexus.io.tio.chat.handler.im.room.AnnouncementGetHandler;
 import nexus.io.tio.chat.handler.im.room.AnnouncementListHandler;
 import nexus.io.tio.chat.handler.im.room.AnnouncementPushHandler;
@@ -63,6 +65,8 @@ public class ImRoomRouteConfig {
     r.delete(P + "/group/admin", new RevokeAdminHandler()::handle);
     r.post(P + "/group/member/nickname", new MemberNicknameHandler()::handle);
     r.post(P + "/group/disband", new GroupDisbandHandler()::handle);
+    r.post(P + "/group/mute", new GroupMuteHandler()::handle);
+    r.post(P + "/group/unmute", new GroupUnmuteHandler()::handle);
     r.get(P + "/group/all", new GroupAllHandler()::handle);
     r.get(P + "/group/page", new GroupPageHandler()::handle);
     r.get(P + "/announcement/list", new AnnouncementListHandler()::handle);

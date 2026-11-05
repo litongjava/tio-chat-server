@@ -29,6 +29,7 @@ import nexus.io.tio.chat.service.common.DelayedTaskService;
 import nexus.io.tio.chat.service.im.RoomQueryService;
 import nexus.io.tio.chat.service.im.chat.msg.MsgHandler;
 import nexus.io.tio.chat.service.im.chat.msg.MsgHandlers;
+import nexus.io.tio.chat.service.im.group.GroupMuteService;
 import nexus.io.tio.chat.utils.ChatErrors;
 import nexus.io.tio.chat.utils.DbRows;
 import nexus.io.tio.chat.utils.Values;
@@ -57,6 +58,7 @@ public class MessageService {
     ChatErrors.require(req.getMsgType() != null, "消息类型不能为空");
     if (!req.isSkip()) {
       checkRoomAccess(true, req.isTemp(), req.getRoomId(), uid);
+      ChatErrors.require(!Aop.get(GroupMuteService.class).isMuted(req.getRoomId(), uid), "你已被禁言");
     }
     MsgHandler handler = MsgHandlers.get(req.getMsgType());
     Map<String, Object> body;
