@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Settings, profile, online state and group management through the desktop client's frontend, driven by dsb.
-#  - settings window: every tab opens, the storage tab scans (the shim answers with the browser's quota)
+#  - settings window: every tab opens, the storage tab scans (the browser build answers with the browser's quota)
 #  - profile: change the nickname and upload a new avatar (cropped, uploaded to MinIO)
 #  - online state: alice switches to "busy" and bob sees it live
 #  - group: announcement, invite a friend, set an admin, remove members from the context menu and
@@ -35,7 +35,7 @@ GROUP=项目组$((TS % 1000))
 RID=$(api POST /api/im/room/group "$TA" "{\"groupName\":\"$GROUP\",\"uidList\":[$UB,$UC,$UD]}" | json "d['data']['id']")
 NEW_NAME=爱丽丝$((TS % 100))
 echo "alice=$EA group=$GROUP"
-DIAG="JSON.stringify({unhandled: [...window.__TAURI_SHIM__.unhandled], failures: window.__TAURI_SHIM__.failures})"
+DIAG="JSON.stringify({unhandled: [...window.__WEB_RUNTIME__.unhandled], failures: window.__WEB_RUNTIME__.failures})"
 
 # a 120x120 avatar image
 python3 -I - "$OUT/avatar.png" <<'EOF'
@@ -52,7 +52,7 @@ login dsb_a "$A_URL" "$EA" "$GROUP"
 login dsb_b "$B_URL" "$EB" "alice$TS"
 open_chat dsb_b "alice$TS"
 
-# settings window: every tab, the storage scan, and no command the shim does not know
+# settings window: every tab, the storage scan, and no command without a browser implementation
 use_tab dsb_a /message
 dsb_a run click_element_by_selector -p 'selector=svg:has(> use[href="#hamburger-button"])'
 dsb_a run click_element_by_text -p text=设置 -p exact=true

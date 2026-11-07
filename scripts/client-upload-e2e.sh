@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# End-to-end test of image and file messages in the desktop client's frontend (browser shim) against
+# End-to-end test of image and file messages in the desktop client's frontend (browser build) against
 # tio-chat-server with the MinIO storage engine. Alice picks an image and a file through the file
-# button (the shim turns the native picker into a hidden <input type=file>, filled by dsb upload_file),
+# button (the browser build turns the native picker into a hidden <input type=file>, filled by dsb upload_file),
 # the client uploads them to presigned MinIO URLs, and Bob must receive both in real time.
 # Usage: scripts/client-upload-e2e.sh [output-dir]   (run with docker access, e.g. sg docker -c ...)
 cd "$(dirname "$0")"; set -eo pipefail
@@ -26,8 +26,8 @@ EOF
 # Pick a file through the chat footer's file button: pick <task> <file> <content-type>
 pick() {
   "$1" run click_element_by_selector -p 'selector=svg:has(> use[href="#file2"])'
-  "$1" run wait_for_function -p "expression=!!document.getElementById('__shim_file_input')" -p timeoutSeconds=5
-  "$1" run upload_file -p 'selector=#__shim_file_input' -p "contentBase64=$(base64 -w0 "$2")" -p "filename=$(basename "$2")" -p "contentType=$3"
+  "$1" run wait_for_function -p "expression=!!document.getElementById('__web_file_input')" -p timeoutSeconds=5
+  "$1" run upload_file -p 'selector=#__web_file_input' -p "contentBase64=$(base64 -w0 "$2")" -p "filename=$(basename "$2")" -p "contentType=$3"
 }
 
 read EA UA EB UB < <(./make-friends.sh | tail -1)

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end test of the desktop client's frontend (served by tools/web-shim/start-client.sh)
+# End-to-end test of the desktop client's frontend (served by tools/web-client/start-client.sh)
 # against tio-chat-server, driven by dsb in two Chrome tasks.
 # The two users use different origins (127.0.0.1 / localhost) so their localStorage stays separate.
 # Usage: scripts/client-e2e.sh [output-dir]   (run with docker access, e.g. sg docker -c ...)

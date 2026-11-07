@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # End-to-end test of the client's AI chat (robot page) against tio-chat-server with a real model provider.
 # Needs a public chat model and chat role, e.g. from scripts/setup-deepseek.sh, plus the client served by
-# tools/web-shim/start-client.sh. Covers: new conversation, model selection, streamed answer, history after
+# tools/web-client/start-client.sh. Covers: new conversation, model selection, streamed answer, history after
 # reload, deep-thinking output and stopping a running answer.
 # Usage: scripts/client-ai-e2e.sh [output-dir]   (run with docker access, e.g. sg docker -c ...)
 cd "$(dirname "$0")"; set -eo pipefail
@@ -31,7 +31,7 @@ NOT_STREAMING="!document.body.innerText.includes('停止思考') && !document.bo
 d start --browser chrome --headless
 d run set_viewport -p width=1100 -p height=760
 d run go_to_url -p "url=$A_URL/login"
-d js "(() => { localStorage.clear(); sessionStorage.clear(); window.name = ''; return 1 })()"
+d js "(() => { localStorage.clear(); sessionStorage.clear(); window.name = ''; localStorage.setItem('setting', JSON.stringify({ page: { lang: '${CLIENT_LANG:-zh-CN}' } })); return 1 })()"
 d run go_to_url -p "url=$A_URL/login"
 d run wait_for_element -p selector=.driver-popover-next-btn -p timeoutMs=20000
 for i in 1 2 3 4; do

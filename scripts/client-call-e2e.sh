@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Voice and video calls through the desktop client's frontend, driven by dsb.
-# Headless Chrome has no camera or microphone: the shim's fake media (localStorage __shim_fake_media=1)
+# Headless Chrome has no camera or microphone: the browser build's fake media (localStorage __web_fake_media=1)
 # hands out a generated tone and an animated canvas. The call windows open as tabs; WebRTC offer, answer
 # and ICE candidates travel through the server's WebSocket signaling, and the server writes the call
 # record message when a call ends.
@@ -22,7 +22,7 @@ echo "alice=$EA bob=$EB"
 login dsb_a "$A_URL" "$EA" "$NB"
 login dsb_b "$B_URL" "$EB" "$NA"
 for d in dsb_a dsb_b; do
-  $d js "(() => { localStorage.setItem('__shim_fake_media', '1'); return 1 })()"
+  $d js "(() => { localStorage.setItem('__web_fake_media', '1'); return 1 })()"
 done
 open_chat dsb_a "$NB"
 use_tab dsb_b /message

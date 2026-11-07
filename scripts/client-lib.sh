@@ -1,6 +1,6 @@
 # Shared helpers for the client end-to-end tests (source this file).
-# Requires: dsb on PATH, the client served by tools/web-shim/start-client.sh, OUT set to the screenshot dir.
-WEB_PORT=${WEB_PORT:-6130}
+# Requires: dsb on PATH, the client served by tools/web-client/start-client.sh (its browser build), OUT set to the screenshot dir.
+WEB_PORT=${WEB_PORT:-6131}
 A_URL=http://127.0.0.1:$WEB_PORT
 B_URL=http://localhost:$WEB_PORT
 
@@ -30,7 +30,8 @@ login() {
   $d run set_viewport -p width=1100 -p height=760
   $d run go_to_url -p "url=$origin/login"
   # the Chrome profile is shared between tasks, so clear this origin's state first
-  $d js "(() => { localStorage.clear(); sessionStorage.clear(); window.name = ''; return 1 })()"
+  # headless Chrome reports en-US: pin the client's language setting (CLIENT_LANG, default zh-CN)
+  $d js "(() => { localStorage.clear(); sessionStorage.clear(); window.name = ''; localStorage.setItem('setting', JSON.stringify({ page: { lang: '${CLIENT_LANG:-zh-CN}' } })); return 1 })()"
   $d run go_to_url -p "url=$origin/login"
   $d run wait_for_element -p selector=.driver-popover-next-btn -p timeoutMs=20000
   for i in 1 2 3 4; do
@@ -92,14 +93,14 @@ finish() {
   "$1" close
 }
 
-# Append the shim's diagnostics of every open tab (commands without a browser implementation and failed
-# commands, see window.__TAURI_SHIM__) to $OUT/shim-diagnostics.log: diagnose <task>
+# Append the browser runtime diagnostics of every open tab (commands without a browser implementation and failed
+# commands, see window.__WEB_RUNTIME__) to $OUT/runtime-diagnostics.log: diagnose <task>
 diagnose() {
   local n i
   n=$("$1" run get_tabs | python3 -c "import sys, json; print(len(json.loads(sys.stdin.read()).get('tabs', [])))")
   for i in $(seq 0 $((n - 1))); do
     "$1" run switch_tab -p pageIndex="$i" >/dev/null
-    "$1_raw" js "JSON.stringify(window.__TAURI_SHIM__ ? {url: location.pathname, unhandled: [...window.__TAURI_SHIM__.unhandled], failures: window.__TAURI_SHIM__.failures} : {url: location.href})" \
-      | python3 -c "import sys, json; print('$(basename "$0") $1', json.loads(sys.stdin.read()))" >> "$OUT/shim-diagnostics.log"
+    "$1_raw" js "JSON.stringify(window.__WEB_RUNTIME__ ? {url: location.pathname, unhandled: [...window.__WEB_RUNTIME__.unhandled], failures: window.__WEB_RUNTIME__.failures} : {url: location.href})" \
+      | python3 -c "import sys, json; print('$(basename "$0") $1', json.loads(sys.stdin.read()))" >> "$OUT/runtime-diagnostics.log"
   done
 }

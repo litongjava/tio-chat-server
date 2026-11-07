@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run every smoke script and, unless SKIP_CLIENT=1, every client end-to-end script against :18760.
 #   scripts/run-all-tests.sh <name>    # results in logs/test-results/<name>, one line per script in summary.txt
-# Client scripts need the web client (tools/web-shim/start-client.sh) and dsb; smoke-ai needs MockLlm on :18799.
+# Client scripts need the web client (tools/web-client/start-client.sh) and dsb; smoke-ai needs MockLlm on :18799.
 cd "$(dirname "$0")/.."
 out="$PWD/logs/test-results/${1:?name}"; rm -rf "$out"; mkdir -p "$out"
 for s in smoke-oauth smoke-social smoke-chat smoke-feed smoke-history smoke-call smoke-base-crud smoke-base-ext smoke-base-rules smoke-ai smoke-ai-admin smoke-portal smoke-msg smoke-security smoke-admin-client smoke-generator smoke-generator-options smoke-generator-web smoke-parity; do

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Third-party login (Gitee) callback flow in the desktop client's frontend (browser shim).
-# Clicking the Gitee icon calls start_oauth_server (the shim hands out this origin and a one-time secret),
+# Third-party login (Gitee) callback flow in the desktop client's frontend (browser build).
+# Clicking the Gitee icon calls start_oauth_server (the browser build hands out this origin and a one-time secret),
 # fetches /api/oauth/anyTenant/gitee/authorize-url and opens the provider page in a new tab. Without
 # provider credentials the provider step is skipped: the test opens the redirect the server would send after
 # the provider callback (redirect?token=...&refreshToken=...&uid=...) with a token from a password login.
@@ -20,7 +20,7 @@ dsb_a close >/dev/null 2>&1 || true
 dsb_a start --browser chrome --headless
 dsb_a run set_viewport -p width=1100 -p height=760
 dsb_a run go_to_url -p "url=$A_URL/login"
-dsb_a js "(() => { localStorage.clear(); sessionStorage.clear(); window.name = ''; return 1 })()"
+dsb_a js "(() => { localStorage.clear(); sessionStorage.clear(); window.name = ''; localStorage.setItem('setting', JSON.stringify({ page: { lang: '${CLIENT_LANG:-zh-CN}' } })); return 1 })()"
 dsb_a run go_to_url -p "url=$A_URL/login"
 dsb_a run wait_for_element -p selector=.driver-popover-next-btn -p timeoutMs=20000
 for i in 1 2 3 4; do
@@ -31,9 +31,9 @@ done
 dsb_a js "(() => { [...document.querySelectorAll('*')].find(e => e.childElementCount === 0 && e.textContent.trim() === '扫码登录').click(); return 1 })()"
 dsb_a run wait_for_element -p 'selector=svg:has(> use[href="#gitee-login"])' -p timeoutMs=10000
 dsb_a run click_element_by_selector -p 'selector=svg:has(> use[href="#gitee-login"])'
-dsb_a run wait_for_function -p "expression=!!localStorage.getItem('__shim_oauth_secret')" -p timeoutSeconds=10
-SECRET=$(dsb_a_raw js "localStorage.getItem('__shim_oauth_secret')" | python3 -c "import sys, json; print(json.loads(sys.stdin.read()))")
-# the provider authorize page the client opened (shell.open -> new tab), with the shim's redirect as state
+dsb_a run wait_for_function -p "expression=!!localStorage.getItem('__web_oauth_secret')" -p timeoutSeconds=10
+SECRET=$(dsb_a_raw js "localStorage.getItem('__web_oauth_secret')" | python3 -c "import sys, json; print(json.loads(sys.stdin.read()))")
+# the provider authorize page the client opened (shell.open -> new tab), with the browser build's redirect as state
 for i in $(seq 1 20); do
   PROVIDER=$(dsb_a run get_tabs | python3 -c "import sys, json; print(next((t['url'] for t in json.loads(sys.stdin.read())['tabs'] if 'gitee.com' in t['url']), ''))")
   [ -n "$PROVIDER" ] && break
@@ -60,7 +60,7 @@ shot dsb_a 90-oauth-callback.png
 use_tab dsb_a /message
 wait_ready dsb_a "${EB%@*}"
 shot dsb_a 91-oauth-logged-in.png
-expect=$(dsb_a_raw js "window.__TAURI_SHIM__.auth.get().uid" | python3 -c "import sys, json; print(json.loads(sys.stdin.read()))")
+expect=$(dsb_a_raw js "window.__WEB_RUNTIME__.auth.get().uid" | python3 -c "import sys, json; print(json.loads(sys.stdin.read()))")
 [ "$expect" = "$UA" ] || { echo "FAIL logged in as $expect, expected $UA" >&2; exit 1; }
 echo "ok   logged in as alice ($UA) through the oauth callback"
 

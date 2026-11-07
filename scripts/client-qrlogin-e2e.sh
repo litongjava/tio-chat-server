@@ -21,7 +21,7 @@ dsb_a close >/dev/null 2>&1 || true
 dsb_a start --browser chrome --headless
 dsb_a run set_viewport -p width=1100 -p height=760
 dsb_a run go_to_url -p "url=$A_URL/login"
-dsb_a js "(() => { localStorage.clear(); sessionStorage.clear(); window.name = ''; return 1 })()"
+dsb_a js "(() => { localStorage.clear(); sessionStorage.clear(); window.name = ''; localStorage.setItem('setting', JSON.stringify({ page: { lang: '${CLIENT_LANG:-zh-CN}' } })); return 1 })()"
 dsb_a run go_to_url -p "url=$A_URL/login"
 dsb_a run wait_for_element -p selector=.driver-popover-next-btn -p timeoutMs=20000
 for i in 1 2 3 4; do

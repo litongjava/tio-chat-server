@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # End-to-end test of the chat history window and the file manager window in the desktop client's frontend
-# (browser shim) against tio-chat-server. Both windows query the client's local SQLite in the desktop app;
-# the shim answers them from /api/im/chat/msg/search and /api/im/chat/msg/files.
+# (browser build) against tio-chat-server. Both windows query the client's local SQLite in the desktop app;
+# the browser build answers them from /api/im/chat/msg/search and /api/im/chat/msg/files.
 #  - history: all messages, keyword search, the image/video and file tabs, a date range (today / a past day)
 #  - file manager: my files, filter by sender, filter by session, keyword search, download from the list
 # Bob and Carol send their messages over the API (files are uploaded to MinIO first), Alice uses the client.
@@ -162,16 +162,16 @@ dsb_a run wait_for_function -p "expression=!document.body.innerText.includes('no
 expect_eq "files: session bob" "$(files '')" 1
 shot dsb_a 82-files-session.png
 
-# open: double-click downloads the file into the shim's file system and opens it in a new tab
+# open: double-click downloads the file into the browser build's in-memory file system and opens it in a new tab
 XY=$(dsb_a js "(() => { const r = document.querySelector('.file-meta-info').previousElementSibling.getBoundingClientRect(); return Math.round(r.x + 60) + 'x' + Math.round(r.y + 30) })()" | grep -o '[0-9]*x[0-9]*' | tail -1)
 dsb_a run mouse_click -p x="${XY%x*}" -p y="${XY#*x}" -p clickCount=2
-dsb_a run wait_for_function -p "expression=window.__TAURI_SHIM__.opened.some(p => p.endsWith('budget-$TS.txt'))" -p timeoutSeconds=15
+dsb_a run wait_for_function -p "expression=window.__WEB_RUNTIME__.opened.some(p => p.endsWith('budget-$TS.txt'))" -p timeoutSeconds=15
 # save as: the save dialog hands out a downloads path, writing it starts a browser download
 dsb_a run mouse_click_by_selector -p 'selector=.file-meta-info' -p button=right
 dsb_a run click_element_by_text -p text=另存为
-dsb_a run wait_for_function -p "expression=window.__TAURI_SHIM__.downloads.some(d => d.name === 'budget-$TS.txt' && d.size > 2000)" -p timeoutSeconds=15
+dsb_a run wait_for_function -p "expression=window.__WEB_RUNTIME__.downloads.some(d => d.name === 'budget-$TS.txt' && d.size > 2000)" -p timeoutSeconds=15
 shot dsb_a 83-files-saved.png
-echo "shim diagnostics: $(dsb_a js "JSON.stringify({unhandled: [...window.__TAURI_SHIM__.unhandled], failures: window.__TAURI_SHIM__.failures})")"
+echo "browser runtime diagnostics: $(dsb_a js "JSON.stringify({unhandled: [...window.__WEB_RUNTIME__.unhandled], failures: window.__WEB_RUNTIME__.failures})")"
 
 # the opened file's tab shows its content
 BLOB=$(dsb_a run get_tabs | python3 -c "import sys, json; print([t['index'] for t in json.loads(sys.stdin.read())['tabs'] if t['url'].startswith('blob:')][-1])")

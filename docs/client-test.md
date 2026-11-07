@@ -1,13 +1,10 @@
 # 桌面客户端前端联调测试
 
-原 IM 桌面客户端基于 Tauri：界面是 Vue 页面，登录、接口请求、WebSocket、消息存储由 Rust 层完成，页面通过 `window.__TAURI_INTERNALS__.invoke` 调用。`tools/web-shim` 在浏览器里提供这个对象，把 Rust 命令直接实现为对本服务的 HTTP 和 WebSocket 调用，客户端前端代码不需要任何修改就能在 Chrome 中运行，再由 deepseek-browser-use 的 `dsb` 驱动做端到端测试。
+原 IM 桌面客户端基于 Tauri：界面是 Vue 页面，登录、接口请求、WebSocket、消息存储由 Rust 层完成。客户端自带浏览器构建（`vite --mode web`）：通过 Vite 别名把 Tauri 模块换成浏览器实现，Rust 命令直接实现为对服务端的 HTTP 和 WebSocket 调用，因此可以在 Chrome 中运行，再由 deepseek-browser-use 的 `dsb` 驱动做端到端测试。
 
 ## 组成
 
-- `tools/web-shim/tauri-shim.js`：浏览器垫片。实现 `invoke`、`transformCallback`、事件（`listen` / `emit`，多标签页之间通过 BroadcastChannel 转发）、Channel 回调，以及登录、`im_request_command`、会话、消息分页、发送消息、群成员、WebSocket 连接与推送分发等命令；窗口、文件、通知等原生能力返回浏览器下的合理默认值。
-- `tools/web-shim/im-urls.json`：客户端接口名到 `[方法, 路径]` 的映射，由客户端 Rust 源码生成。
-- `tools/web-shim/vite.web.config.ts`：复用客户端自己的 Vite 配置，把 `/api`（含 WebSocket）代理到本服务，并在页面最前面注入垫片。
-- `tools/web-shim/start-client.sh`：把垫片和配置放进客户端目录并启动 Vite。
+- `tools/web-client/start-client.sh`：在客户端目录以浏览器模式启动 Vite，并把 `/api`（含 WebSocket）代理到本服务。
 - `scripts/make-friends.sh`：注册两个用户并互加好友。
 - `scripts/make-group-users.sh`：注册 alice、bob、carol，alice 与另外两人互为好友。
 - `scripts/client-lib.sh`：测试脚本共用的 dsb 操作（登录、打开会话、发消息、截图）。
@@ -28,10 +25,10 @@
 先启动 MySQL、Redis 和本服务，安装 Node 20+ 与 pnpm，在客户端源码目录执行一次 `pnpm install`，然后：
 
 ```shell
-CLIENT_DIR=<客户端源码目录> tools/web-shim/start-client.sh
+CLIENT_DIR=<客户端源码目录> tools/web-client/start-client.sh
 ```
 
-前端运行在 `http://127.0.0.1:6130`。可用环境变量：`WEB_PORT`（默认 6130）、`API_TARGET`（默认 `http://127.0.0.1:18760`）、`CLIENT_LANG`（界面语言，默认 zh-CN）。
+前端运行在 `http://127.0.0.1:6131`。可用环境变量：`WEB_PORT`（默认 6131）、`API_TARGET`（默认 `http://127.0.0.1:18760`）。测试脚本登录前会把客户端的界面语言设为 `CLIENT_LANG`（默认 zh-CN），因为无头 Chrome 的语言是 en-US。
 
 安装并启动 dsb 后执行端到端测试：
 
@@ -49,7 +46,7 @@ sg docker -c "scripts/client-history-files-e2e.sh client-e2e-out"
 sg docker -c "scripts/client-oauth-e2e.sh client-e2e-out"
 ```
 
-每个脚本结束时（`finish`）把各标签页中垫片记录的未实现命令和失败命令追加到输出目录的 `shim-diagnostics.log`。
+每个脚本结束时（`finish`）把各标签页中浏览器运行时记录的未实现命令和失败命令追加到输出目录的 `runtime-diagnostics.log`。
 
 两个用户分别使用 `127.0.0.1` 和 `localhost` 两个源打开页面，各自的 localStorage 互不影响；每次登录前会清空该源的本地状态，保证首次使用引导、登录表单的流程一致。
 
@@ -78,14 +75,14 @@ sg docker -c "scripts/client-oauth-e2e.sh client-e2e-out"
 
 ## 图片与文件消息
 
-桌面客户端发送图片和文件时，先把文件写到本地缓存目录（`plugin-fs`），再把路径交给 Rust 命令 `upload_file_put`，由它 PUT 到服务端返回的预签名地址；收到的图片先下载到本地缓存，再用 `convertFileSrc` 显示。垫片在浏览器里补齐了这条链路：
+桌面客户端发送图片和文件时，先把文件写到本地缓存目录（`plugin-fs`），再把路径交给 Rust 命令 `upload_file_put`，由它 PUT 到服务端返回的预签名地址；收到的图片先下载到本地缓存，再用 `convertFileSrc` 显示。浏览器构建在浏览器里补齐了这条链路：
 
-- 内存文件系统：`plugin:fs` 的 `create` / `open` / `write` / `write_file` / `read_file` / `stat` / `exists` / `copy_file` / `remove` 等命令读写同一个内存表，相对路径和 `resolve_directory` 拼出的绝对路径指向同一个文件。
-- 文件选择：`plugin:dialog|open` 用隐藏的 `<input type=file id="__shim_file_input">` 实现，选中的文件放进内存文件系统并返回路径；无头浏览器会立即取消文件选择框，垫片会保留这个输入框，测试脚本用 dsb 的 `upload_file` 给它设置文件。
+- 内存文件系统：fs 插件的 `create` / `open` / `writeFile` / `readFile` / `stat` / `exists` / `copyFile` / `remove` 等读写同一个内存表，相对路径和 path 模块各目录函数拼出的绝对路径指向同一个文件。
+- 文件选择：对话框插件的 `open()` 用隐藏的 `<input type=file id="__web_file_input">` 实现，选中的文件放进内存文件系统并返回路径；无头浏览器会立即取消文件选择框，浏览器构建会保留这个输入框，测试脚本用 dsb 的 `upload_file` 给它设置文件。
 - `get_files_meta`：返回内存文件的名称、扩展名和 MIME 类型。
 - `upload_file_put`：用 XMLHttpRequest 把内存文件 PUT 到预签名地址，并通过 Channel 回报上传进度。
 - `convertFileSrc`：内存中的文件（下载好的缩略图、粘贴的图片）转换成 `blob:` 地址。
-- `plugin:http`：`fetch` / `fetch_send` / `fetch_read_body` / `fetch_cancel` 基于浏览器 `fetch` 实现，目标地址需要允许跨域。
+- http 插件的 `fetch` 直接使用浏览器 `fetch`，目标地址需要允许跨域。
 - `qiniu_upload_resumable`（七牛分片上传）在浏览器中不可用，联调时把存储引擎配置为 MinIO。
 
 测试步骤：
@@ -102,11 +99,11 @@ sg docker -c "scripts/client-oauth-e2e.sh client-e2e-out"
 
 ## 加好友与申请加群
 
-桌面客户端的“加好友/群”、“申请加好友”、“申请加群”都是独立窗口，垫片把它们作为新标签页打开（`window.open(url, label)`），测试脚本用 dsb 的 `get_tabs` / `switch_tab` 切换（`client-lib.sh` 的 `use_tab`）。多个标签页之间的配合方式与 Rust 层一致：
+桌面客户端的“加好友/群”、“申请加好友”、“申请加群”都是独立窗口，浏览器构建把它们作为新标签页打开（`window.open(url, label)`），测试脚本用 dsb 的 `get_tabs` / `switch_tab` 切换（`client-lib.sh` 的 `use_tab`）。多个标签页之间的配合方式与 Rust 层一致：
 
 - 窗口之间共享的 Pinia 状态（例如要添加的用户 `addFriendModalInfo`）由客户端自带的 `pinia-shared-state` 通过 BroadcastChannel 同步。
 - WebSocket 只在主窗口（`home`）所在标签页中建立。推送按 Rust 层的规则分发：聊天、联系人、群、朋友圈类推送只发给 `home`，通话、登录二维码、令牌失效等推送发给所有窗口；其他标签页通过 BroadcastChannel 收到。
-- 其他标签页调用 `ws_send_message`（例如通话窗口发送信令）时，垫片把消息转给持有连接的标签页发送；连接状态写在 localStorage 中，`ws_get_state` / `ws_is_connected` 在所有标签页返回一致的结果。
+- 其他标签页调用 `ws_send_message`（例如通话窗口发送信令）时，浏览器构建把消息转给持有连接的标签页发送；连接状态写在 localStorage 中，`ws_get_state` / `ws_is_connected` 在所有标签页返回一致的结果。
 - 窗口的 `close` / `destroy` 关闭对应的标签页；关闭其他窗口（按标签名）时转发给那个标签页自己关闭。
 
 `scripts/client-friend-e2e.sh` 注册 alice、bob（互不认识）和 alice 的两个好友，alice 用这两个好友建一个群，然后：
@@ -142,9 +139,9 @@ sg docker -c "scripts/client-oauth-e2e.sh client-e2e-out"
 
 ## 语音与视频通话
 
-通话窗口 `/rtcCall` 以新标签页打开：主叫方点击聊天头部的电话或摄像机图标，被叫方的主窗口收到 `VideoCallRequest` 推送后打开来电窗口。通话窗口没有自己的 WebSocket，WebRTC 的 offer、answer、ICE 候选通过垫片转给主窗口所在标签页发送（类型 14），服务端在两人之间转发；应答（类型 6）、挂断、拒绝、取消同样如此，通话结束时服务端生成通话记录消息（语音 12、视频 13）。
+通话窗口 `/rtcCall` 以新标签页打开：主叫方点击聊天头部的电话或摄像机图标，被叫方的主窗口收到 `VideoCallRequest` 推送后打开来电窗口。通话窗口没有自己的 WebSocket，WebRTC 的 offer、answer、ICE 候选通过浏览器构建转给主窗口所在标签页发送（类型 14），服务端在两人之间转发；应答（类型 6）、挂断、拒绝、取消同样如此，通话结束时服务端生成通话记录消息（语音 12、视频 13）。
 
-无头 Chrome 没有摄像头和麦克风。垫片提供模拟设备：`localStorage.__shim_fake_media` 为 `1` 时，`getUserMedia` 返回由振荡器生成的音轨和动画 canvas 生成的视频轨，`enumerateDevices` 返回模拟的麦克风、摄像头和扬声器。两个浏览器任务在同一台机器上，WebRTC 直接用主机候选地址连通。垫片还实现了 `push_window_payload` / `get_window_payload`（保存在 localStorage，供另一个标签页的窗口读取）。
+无头 Chrome 没有摄像头和麦克风。浏览器构建提供模拟设备：`localStorage.__web_fake_media` 为 `1` 时，`getUserMedia` 返回由振荡器生成的音轨和动画 canvas 生成的视频轨，`enumerateDevices` 返回模拟的麦克风、摄像头和扬声器。两个浏览器任务在同一台机器上，WebRTC 直接用主机候选地址连通。浏览器构建还实现了 `push_window_payload` / `get_window_payload`（保存在 localStorage，供另一个标签页的窗口读取）。
 
 `scripts/client-call-e2e.sh` 用 `make-friends.sh` 生成一对好友，登录后打开模拟设备，然后：
 
@@ -175,7 +172,7 @@ sg docker -c "scripts/client-oauth-e2e.sh client-e2e-out"
 
 `scripts/client-profile-group-e2e.sh` 注册 alice 及 4 个好友（bob、carol、dave、eve），alice 用 bob、carol、dave 建群，然后：
 
-1. 设置窗口（左下角菜单 →“设置”，新标签页）：依次打开通用、通知、快捷键、登录、存储；存储页点击“开始扫描”，显示磁盘分区总容量等信息。检查垫片记录的未实现命令和失败命令都为空（`window.__TAURI_SHIM__.unhandled` / `failures`）。
+1. 设置窗口（左下角菜单 →“设置”，新标签页）：依次打开通用、通知、快捷键、登录、存储；存储页点击“开始扫描”，显示磁盘分区总容量等信息。检查浏览器构建记录的未实现命令和失败命令都为空（`window.__WEB_RUNTIME__.unhandled` / `failures`）。
 2. 个人资料：点击头像 →“编辑资料”，修改昵称后保存，提示“保存成功”；点击头像选择图片，裁剪后上传到 MinIO。接口返回的昵称和头像地址都已更新。
 3. 在线状态：点击头像弹出框中的“在线”，在线状态窗口选择“忙碌”；bob 打开着与 alice 的会话，头部实时显示“忙碌”。
 4. 群公告：alice 在群聊右侧点击“群公告须知”，在公告窗口填写并发布，窗口自动关闭；bob 的群聊中出现公告消息，右侧公告栏同步更新。
@@ -185,13 +182,13 @@ sg docker -c "scripts/client-oauth-e2e.sh client-e2e-out"
 
 截图：`61-settings-storage.png`、`62-profile-edited.png`、`63-bob-sees-busy.png`、`64-bob-announcement.png`、`65-invite.png`、`66-bob-admin.png`、`67-members-managed.png`。
 
-垫片补充：存储设置页调用的 `get_directory_usage_info_with_progress` 用内存文件系统统计目录大小、用 `navigator.storage.estimate()` 作为磁盘容量，并发送 `directory-scan-complete` 事件；`cancel_directory_scan` 为空操作。
+浏览器构建补充：存储设置页调用的 `get_directory_usage_info_with_progress` 用内存文件系统统计目录大小、用 `navigator.storage.estimate()` 作为磁盘容量，并发送 `directory-scan-complete` 事件；`cancel_directory_scan` 为空操作。
 
 与原服务端一致、未改动的行为：修改昵称和头像不推送给好友，好友刷新后才看到新资料；群成员不超过 3 人时移出成员会直接解散群聊；在另一台设备上建群不会推送到建群人自己的其他设备。
 
 ## AI 助手（DeepSeek）
 
-桌面客户端的 AI 助手是 `/robot` 窗口。发送消息时页面调用 Rust 命令 `ai_message_send_stream`，参数是请求体 `body`（`conversationId`、`content`、`useContext`、`reasoningEnabled`）、`requestId` 和一个 Channel；Rust 层 POST `ai/chat/message/send-stream`，收到响应头后命令立即返回，随后在后台按 `\n\n` 切分 SSE 事件，每个 `data:` 行作为一条 `{eventType: "chunk", data, requestId}` 发到 Channel，流结束时发送 `done`（`data` 为全部数据拼接），出错时发送 `error`。停止生成调用 `ai_message_cancel_stream`，中止后台任务后不再发送任何事件。垫片按同样的顺序和字段实现这两个命令：用 `fetch` 读取响应流，`TextDecoder` 按流式方式解码（多字节汉字被拆在两个数据块中也能正确拼接），取消时中止 `fetch`。
+桌面客户端的 AI 助手是 `/robot` 窗口。发送消息时页面调用 Rust 命令 `ai_message_send_stream`，参数是请求体 `body`（`conversationId`、`content`、`useContext`、`reasoningEnabled`）、`requestId` 和一个 Channel；Rust 层 POST `ai/chat/message/send-stream`，收到响应头后命令立即返回，随后在后台按 `\n\n` 切分 SSE 事件，每个 `data:` 行作为一条 `{eventType: "chunk", data, requestId}` 发到 Channel，流结束时发送 `done`（`data` 为全部数据拼接），出错时发送 `error`。停止生成调用 `ai_message_cancel_stream`，中止后台任务后不再发送任何事件。浏览器构建按同样的顺序和字段实现这两个命令：用 `fetch` 读取响应流，`TextDecoder` 按流式方式解码（多字节汉字被拆在两个数据块中也能正确拼接），取消时中止 `fetch`。
 
 测试前用 `scripts/setup-deepseek.sh` 登记 DeepSeek（公开密钥、`deepseek-flash` 与 `deepseek-v4-pro` 两个公开模型、一个公开角色“DeepSeek 助手”），然后执行 `scripts/client-ai-e2e.sh`。脚本注册新用户并完成以下步骤：
 
@@ -223,11 +220,11 @@ curl -N -XPOST localhost:18760/api/ai/chat/message/send-stream -H 'Content-Type:
 
 ## 聊天记录与文件管理
 
-桌面客户端的“聊天记录”窗口（聊天输入框上方的历史图标，`/chat-history?roomId=...`）和左下角的“文件”窗口（`/fileManager`）都只查本地 SQLite：Rust 命令 `query_chat_history` 按会话、消息类型（`image` 为图片 3 和视频 6，`file` 为文件 4）、关键词（匹配正文、文件名、链接）、发送时间范围、排序和页码查询，返回 `{messages: MessageResp[], hasMore, currentPage}`；`query_files` 按导航（我的文件、按发送人、按会话、按群组）查询文件和视频消息，返回按日期分组的 `{timeGroupedFiles: [{date, displayDate, files: FileInfo[]}], userList, hasMore, currentPage}`，`get_navigation_items` 返回四个导航项。浏览器没有本地库，服务端新增两个接口代替（见 README“接口分组”），垫片按 Rust 的参数和返回结构转换：
+桌面客户端的“聊天记录”窗口（聊天输入框上方的历史图标，`/chat-history?roomId=...`）和左下角的“文件”窗口（`/fileManager`）都只查本地 SQLite：Rust 命令 `query_chat_history` 按会话、消息类型（`image` 为图片 3 和视频 6，`file` 为文件 4）、关键词（匹配正文、文件名、链接）、发送时间范围、排序和页码查询，返回 `{messages: MessageResp[], hasMore, currentPage}`；`query_files` 按导航（我的文件、按发送人、按会话、按群组）查询文件和视频消息，返回按日期分组的 `{timeGroupedFiles: [{date, displayDate, files: FileInfo[]}], userList, hasMore, currentPage}`，`get_navigation_items` 返回四个导航项。浏览器没有本地库，服务端新增两个接口代替（见 README“接口分组”），浏览器构建按 Rust 的参数和返回结构转换：
 
-- `query_chat_history` → `GET /api/im/chat/msg/search`，消息转换为 `MessageResp`（`createId`、`createTime`、`fromUser`、`message`、`timeBlock`）。日期选择器给出的结束时间是当天零点，Rust 实现按 `send_time <= 结束时间` 过滤，选同一天时查不到任何消息；垫片把零点的结束时间延长到当天结束。`hasMore` 取服务端的 `isLast`，而不是“本页是否满页”。
+- `query_chat_history` → `GET /api/im/chat/msg/search`，消息转换为 `MessageResp`（`createId`、`createTime`、`fromUser`、`message`、`timeBlock`）。日期选择器给出的结束时间是当天零点，Rust 实现按 `send_time <= 结束时间` 过滤，选同一天时查不到任何消息；浏览器构建把零点的结束时间延长到当天结束。`hasMore` 取服务端的 `isLast`，而不是“本页是否满页”。
 - `query_files` → `GET /api/im/chat/msg/files`，“按发送人”与 Rust 一致：列出与该联系人有消息往来的会话中的全部文件。`FileInfo.sender` 带服务端返回的昵称与头像（Rust 只有本地昵称，头像固定为默认图）；文件列表中的“来自”由客户端按当前会话的群成员显示，不在当前群里的发送人显示为“未知用户”，与桌面端相同。
-- 打开与保存文件：双击文件时客户端先下载到缓存目录再调用 opener 插件的 `open_path`，垫片在新标签页打开内存文件系统中的文件；“在文件夹中显示”（`reveal_item_in_dir`）改为浏览器下载。右键“另存为”时 `dialog` 插件的 `save` 返回虚拟的下载目录路径，客户端写入该路径时垫片触发浏览器下载。
+- 打开与保存文件：双击文件时客户端先下载到缓存目录再调用 opener 插件的 `open_path`，浏览器构建在新标签页打开内存文件系统中的文件；“在文件夹中显示”（`reveal_item_in_dir`）改为浏览器下载。右键“另存为”时 `dialog` 插件的 `save` 返回虚拟的下载目录路径，客户端写入该路径时浏览器构建触发浏览器下载。
 
 `scripts/client-history-files-e2e.sh` 注册 alice、bob、carol，alice 与两人互为好友；bob 和 carol 通过接口发消息（文件先用预签名地址上传到 MinIO）：bob 发两条含 kiwi 的文本（大小写不同，其中一条由 alice 发）、一条普通文本、一张图片、一个文件 `budget-*.txt`，carol 发一个文件 `notes-*.txt`。alice 在客户端：
 
@@ -237,7 +234,7 @@ curl -N -XPOST localhost:18760/api/ai/chat/message/send-stream -H 'Content-Type:
 4. 日期选择“今天 ~ 今天”仍是 6 条；选择本月 1 日（过去的一天）为 0 条。
 5. 打开文件窗口，“我的文件”列出 `budget-*` 与 `notes-*`；搜索 `notes` 只剩一个。
 6. “按发送人”选 carol 只剩 `notes-*`；“按会话”选 bob 只剩 `budget-*`。
-7. 双击文件，新标签页显示文件内容；右键“另存为”，浏览器下载该文件（`window.__TAURI_SHIM__.downloads` 记录文件名和大小）。
+7. 双击文件，新标签页显示文件内容；右键“另存为”，浏览器下载该文件（`window.__WEB_RUNTIME__.downloads` 记录文件名和大小）。
 
 截图：`70-history-all.png`、`71-history-keyword.png`、`72-history-images.png`、`73-history-files.png`、`74-history-today.png`、`75-history-past-day.png`、`80-files-all.png`、`81-files-sender.png`、`82-files-session.png`、`83-files-saved.png`、`84-files-opened.png`。
 
@@ -247,9 +244,9 @@ curl -N -XPOST localhost:18760/api/ai/chat/message/send-stream -H 'Content-Type:
 
 桌面端点击第三方登录时，Rust 命令 `start_oauth_server` 在 `127.0.0.1:36677` 监听并生成一次性 `secret`，客户端请求 `/api/oauth/anyTenant/{provider}/authorize-url?redirect=http://127.0.0.1:36677/?secret=...` 取得授权地址并在浏览器中打开；授权后服务端的 `callback` 用授权码登录，再重定向到 `redirect?token=...&refreshToken=...&uid=...`，本地监听校验 `secret` 后发出 `oauth-token` 事件，登录窗口据此保存令牌并进入主界面。
 
-浏览器中垫片的 `start_oauth_server` 返回当前页面的端口和一个保存在 localStorage 的一次性 `secret`，因此重定向地址就是前端自身（`http://127.0.0.1:<端口>/?secret=...`）。回调标签页加载垫片时识别出 `secret` 与 `token`（或 `code`），校验通过后通过 BroadcastChannel 向登录页发送 `oauth-token`，显示“登录成功”并自动关闭；`secret` 不符时显示错误，不发送事件。客户端把回调主机写死为 `127.0.0.1`，所以第三方登录只能在 `http://127.0.0.1:<端口>` 打开的前端中使用（`localhost` 源收不到回调）。服务端需要配置 `oauth.<provider>.client-id`、`client-secret` 和 `redirect-uri`（指向本服务的 `/api/oauth/anyTenant/<provider>/callback`），本地没有第三方应用凭据，`scripts/client-oauth-e2e.sh` 验证除第三方授权页以外的整个流程：
+浏览器中浏览器构建的 `start_oauth_server` 返回当前页面的端口和一个保存在 localStorage 的一次性 `secret`，因此重定向地址就是前端自身（`http://127.0.0.1:<端口>/?secret=...`）。回调标签页加载浏览器构建时识别出 `secret` 与 `token`（或 `code`），校验通过后通过 BroadcastChannel 向登录页发送 `oauth-token`，显示“登录成功”并自动关闭；`secret` 不符时显示错误，不发送事件。客户端把回调主机写死为 `127.0.0.1`，所以第三方登录只能在 `http://127.0.0.1:<端口>` 打开的前端中使用（`localhost` 源收不到回调）。服务端需要配置 `oauth.<provider>.client-id`、`client-secret` 和 `redirect-uri`（指向本服务的 `/api/oauth/anyTenant/<provider>/callback`），本地没有第三方应用凭据，`scripts/client-oauth-e2e.sh` 验证除第三方授权页以外的整个流程：
 
-1. 登录页切到“扫码登录”，点击 Gitee 图标：垫片生成一次性 `secret`，客户端取得授权地址并通过 `shell.open` 在新标签页打开 gitee.com（`state` 中带着垫片给出的回调地址）。
+1. 登录页切到“扫码登录”，点击 Gitee 图标：浏览器构建生成一次性 `secret`，客户端取得授权地址并通过 `shell.open` 在新标签页打开 gitee.com（`state` 中带着浏览器构建给出的回调地址）。
 2. 用错误的 `secret` 打开回调地址，页面显示 “invalid or missing secret”，不会登录。
 3. 用密码登录接口取得令牌，按服务端 `callback` 的格式打开 `/?secret=<secret>?token=...&refreshToken=...&uid=...`：回调页显示“登录成功”，登录页收到 `oauth-token` 后进入主界面，当前用户为该账号。
 
@@ -258,7 +255,7 @@ curl -N -XPOST localhost:18760/api/ai/chat/message/send-stream -H 'Content-Type:
 
 ## 覆盖情况
 
-各脚本最近一次全部通过；脚本结束时收集的 `shim-diagnostics.log` 中所有标签页的未实现命令和失败命令都为空。
+各脚本最近一次全部通过；脚本结束时收集的 `runtime-diagnostics.log` 中所有标签页的未实现命令和失败命令都为空。
 
 - 账号：密码登录、扫码登录、第三方登录回调（`client-e2e.sh`、`client-qrlogin-e2e.sh`、`client-oauth-e2e.sh`）。
 - 单聊与群聊：会话列表、消息收发与实时推送、撤回、已读、好友列表（`client-e2e.sh`、`client-group-e2e.sh`）。
@@ -282,9 +279,9 @@ curl -N -XPOST localhost:18760/api/ai/chat/message/send-stream -H 'Content-Type:
 
 ## 说明
 
-- 垫片不使用本地 SQLite：会话、消息、群成员每次直接从服务端读取，`save_msg`、`sync_messages` 等本地缓存命令为空操作；聊天记录检索和文件管理改为查询服务端。
+- 浏览器构建不使用本地 SQLite：会话、消息、群成员每次直接从服务端读取，`save_msg`、`sync_messages` 等本地缓存命令为空操作；聊天记录检索和文件管理改为查询服务端。
 - 原生能力的浏览器替代：`shell.open` 与 opener 的 `open_url` 在新标签页打开链接；`open_path` 在新标签页打开内存文件系统中的文件，`reveal_item_in_dir` 改为浏览器下载；“另存为”对话框返回虚拟下载目录，写入时触发浏览器下载；`get_video_thumbnail` 用 `<video>` 和 canvas 截取首帧（JPEG base64，字段与 Rust 一致）。
 - 只在桌面端打开的辅助窗口（加好友、设置等）会以新标签页打开；主窗口（登录、主界面）在当前标签页切换。
 - dsb 的任务共用一个 Chrome，最后一个任务关闭时浏览器会保留它的页面。遗留的页面仍在运行客户端，和新页面同源时会通过 BroadcastChannel 和 localStorage 互相干扰（例如收到旧账号的来电）。测试脚本结束时用 `finish` 关闭新标签页并把主页面切到空白页；如果之前有中断的测试，先在没有其他任务时执行 `dsb close --close-browser` 关闭浏览器再测。
 - 浏览器登录会使同一设备类型（PC）之前签发的令牌失效，测试脚本在浏览器登录后需要调用接口时，用另一个设备类型（如 `MOBILE`）重新登录取得令牌。
-- 首次启动时 Vite 会预构建依赖并自动刷新一次页面，垫片会保留当前窗口标签，刷新后状态不受影响。
+- 首次启动时 Vite 会预构建依赖并自动刷新一次页面，浏览器构建会保留当前窗口标签，刷新后状态不受影响。
